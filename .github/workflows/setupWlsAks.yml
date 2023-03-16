@@ -1,0 +1,340 @@
+name: Setup WLS on AKS
+
+on:
+  workflow_dispatch:
+    inputs:
+      disambiguationSuffix:
+        description: "Included in names to disambiguate. Get from another pipeline execution"
+        required: true
+  repository_dispatch:
+
+# All of the secrets in the env section are required. Run setup.sh to
+# populate the git repository running this workflow with the necessary secrets.
+    
+env:
+  aksRepoUserName: oracle
+  aksRepoBranchName: 364b7648bbe395cb17683180401d07a3029abe91
+  aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
+  azCliVersion: 2.40.0
+  azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
+  dbAdminUser: weblogic
+  dbPassword: ${{ secrets.DB_PASSWORD }}
+  dbName: wlsdb${{ github.run_id }}${{ github.run_number }}
+  location: eastus
+  ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
+  ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
+  refJavaee: b728442f1921282f5f3902fe5bdf7f4d2c7872ca
+  resourceGroupForWlsAks: wlsd-aks-${{ github.event.inputs.disambiguationSuffix }}-${{ github.run_number }}
+  resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
+  resourceGroupForStorageAccount: wlsd-sa-${{ github.run_id }}-${{ github.run_number }}
+  storageAccountName: wlsdsa${{ github.run_id }}${{ github.run_number }}
+  storageContainerName: wlsdcon${{ github.run_id }}${{ github.run_number }}
+  wdtRuntimePassword: ${{ secrets.WDT_RUNTIMEPSW}}
+  wlsUserName: ${{ secrets.WLS_USERNAME }}
+  wlsPassword: ${{ secrets.WLS_PSW }}
+
+jobs:
+  # Make it so the bicep file that causes WLS on AKS to be deployed is available to this workflow.
+  preflight:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Set up JDK 1.8
+        uses: actions/setup-java@v1
+        with:
+          java-version: 1.8
+      - name: Set up bicep
+        run: |
+          curl -Lo bicep https://github.com/Azure/bicep/releases/download/v0.11.1/bicep-linux-x64
+          chmod +x ./bicep
+          sudo mv ./bicep /usr/local/bin/bicep
+          bicep --version
+      # This is a precondition necessary to generate the bicep file to deploy WLS on AKS.
+      - name: Checkout azure-javaee-iaas
+        uses: actions/checkout@v2
+        with:
+          repository: Azure/azure-javaee-iaas
+          path: azure-javaee-iaas
+          ref: ${{ env.refJavaee }}
+      - name: Build azure-javaee-iaas
+        run: mvn -DskipTests clean install --file azure-javaee-iaas/pom.xml
+      # Check out the repository containing the code to deploy WLS on AKS.
+      - name: Checkout ${{ env.aksRepoUserName }}/weblogic-azure
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ env.aksRepoUserName }}/weblogic-azure
+          path: weblogic-azure
+          ref: ${{ env.aksRepoBranchName }}
+      # Generate the WLS on AKS bicep template so it can be invoked later. The bicep template is enclosed in a zip file.
+      - name: Build and test weblogic-azure/weblogic-azure-aks
+        run: mvn -Pbicep -Ddev -Passembly clean install --file weblogic-azure/weblogic-azure-aks/pom.xml
+      - name: Generate artifact file name and path
+        id: artifact_file
+        run: |
+          version=$(awk '/<version>[^<]+<\/version>/{gsub(/<version>|<\/version>/,"",$1);print $1;exit;}' weblogic-azure/weblogic-azure-aks/pom.xml)
+          artifactName=wls-on-aks-azure-marketplace-$version-arm-assembly
+          unzip weblogic-azure/weblogic-azure-aks/target/$artifactName.zip -d weblogic-azure/weblogic-azure-aks/target/$artifactName
+          echo "artifactName=${artifactName}" >> "$GITHUB_OUTPUT"
+          echo "artifactPath=weblogic-azure/weblogic-azure-aks/target/$artifactName" >> "$GITHUB_OUTPUT"
+      # Make the contents of the zip file available for use later in the workflow.
+      - name: Archive weblogic-azure/weblogic-azure-aks template
+        uses: actions/upload-artifact@v1
+        if: success()
+        with:
+          name: ${{steps.artifact_file.outputs.artifactName}}
+          path: ${{steps.artifact_file.outputs.artifactPath}}
+  # Set up database for use by application.
+  deploy-db:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v1
+        id: azure-login
+        with:
+          creds: ${{ env.azureCredentials }}
+      - name: Create Resource Group
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            echo "create resource group" ${{ env.resourceGroupForDB }}
+            az group create --verbose --name ${{ env.resourceGroupForDB }} --location ${{ env.location }}
+      - name: Set Up Azure Postgresql to Test dbTemplate
+        id: setup-postgresql
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            echo "Deploy DB with name " ${{ env.dbName }}
+            az postgres server create \
+            --resource-group ${{ env.resourceGroupForDB }} \
+            --name ${{ env.dbName }}  \
+            --location ${{ env.location }} \
+            --admin-user ${{ env.dbAdminUser }} \
+            --ssl-enforcement Disabled \
+            --public-network-access Enabled \
+            --admin-password ${{ env.dbPassword }} \
+            --sku-name B_Gen5_1
+            echo "Allow Access To Azure Services"
+            az postgres server firewall-rule create \
+            -g ${{ env.resourceGroupForDB }} \
+            -s ${{ env.dbName }} \
+            -n "AllowAllWindowsAzureIps" \
+            --start-ip-address "0.0.0.0" \
+            --end-ip-address "0.0.0.0"
+  # Create an Azure storage account to hold the application war so that WLS on AKS can access it at deployment time.
+  deploy-storage-account:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout cargotracker
+        uses: actions/checkout@v2
+        with:
+          path: cargotracker
+      - name: Maven build web app
+        run: |
+          mvn clean install -PweblogicOnAks --file cargotracker/pom.xml
+      - uses: azure/login@v1
+        id: azure-login
+        with:
+          creds: ${{ env.azureCredentials }}
+      - name: Create Resource Group
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            echo "create resource group" ${{ env.resourceGroupForStorageAccount }}
+            az group create --verbose --name ${{ env.resourceGroupForStorageAccount }} --location ${{ env.location }}
+      - name: Create Storage Account
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            az storage account create --name ${{ env.storageAccountName }} \
+                --resource-group ${{ env.resourceGroupForStorageAccount }} \
+                --location ${{ env.location }} \
+                --sku Standard_LRS \
+                --kind StorageV2
+      - name: Create Storage Container
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            az storage container create -n ${{ env.storageContainerName }} --public-access container --account-name ${{ env.storageAccountName }}
+      - name: Upload built web app war file
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            az storage blob upload --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --file cargotracker/target/cargo-tracker.war --name cargo-tracker.war
+  # Invoke the bicep file, passing the necessary parameters to identify the database and war file.
+  deploy-wls-on-aks:
+    needs: [deploy-db,deploy-storage-account]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout ${{ env.aksRepoUserName }}/weblogic-azure
+        uses: actions/checkout@v2
+        with:
+          repository: ${{ env.aksRepoUserName }}/weblogic-azure
+          path: weblogic-azure
+          ref: ${{ env.aksRepoBranchName }}
+      - name: Get version information from weblogic-azure/weblogic-azure-aks/pom.xml
+        id: version
+        run: |
+          version=$(awk '/<version>[^<]+<\/version>/{gsub(/<version>|<\/version>/,"",$1);print $1;exit;}' weblogic-azure/weblogic-azure-aks/pom.xml)
+          echo "version=${version}" >> $GITHUB_ENV
+      - name: Output artifact name for Download action
+        id: artifact_file
+        run: |
+          artifactName=wls-on-aks-azure-marketplace-$version-arm-assembly
+          echo "artifactName=${artifactName}" >> $GITHUB_ENV
+          echo "artifactName=${artifactName}" >> "$GITHUB_OUTPUT"
+      - name: Download artifact for deployment
+        uses: actions/download-artifact@v1
+        with:
+          name: ${{steps.artifact_file.outputs.artifactName}}
+      - uses: azure/login@v1
+        id: azure-login
+        with:
+          creds: ${{ env.azureCredentials }}
+      - name: Query web app blob url and set to env
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            cargoTrackerBlobUrl=$(az storage blob url --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --name cargo-tracker.war -o tsv)
+            polishedUrl=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
+            echo "cargoTrackerBlobUrl=${polishedUrl}" >> $GITHUB_ENV
+      - name: Create Resource Group
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            echo "create resource group" ${{ env.resourceGroupForWlsAks }}
+            az group create --verbose --name ${{ env.resourceGroupForWlsAks }} --location ${{ env.location }}
+      - name: Checkout cargotracker
+        uses: actions/checkout@v2
+        with:
+          path: cargotracker
+      - name: Prepare parameter file
+        run: |
+          echo "replace placeholders using real parameter"
+          sed -i "s/#location#/${location}/g; \
+                  s/#wlsUserName#/${wlsUserName}/g; \
+                  s/#wlsPassword#/${wlsPassword}/g; \
+                  s/#ocrSSOPSW#/${ocrSSOPSW}/g; \
+                  s/#ocrSSOUser#/${ocrSSOUser}/g; \
+                  s/#appPackageUrls#/${cargoTrackerBlobUrl}/g; \
+                  s/#wdtRuntimePassword#/${wdtRuntimePassword}/g; \
+                  s/#testbranchName#/${aksRepoBranchName}/g; \
+                  s/#gitUserName#/${aksRepoUserName}/g; \
+                  s/#dbPassword#/${dbPassword}/g; \
+                  s/#dbUser#/${dbAdminUser}@${dbName}/g; \
+                  s/#dsConnectionURL#/jdbc:postgresql:\/\/${dbName}.postgres.database.azure.com:5432\/postgres/g" \
+                  cargotracker/src/test/aks/parameters.json
+      - name: Archive parameters.json
+        uses: actions/upload-artifact@v1
+        with:
+          name: archivefiles
+          path: cargotracker/src/test/aks/parameters.json
+      # Validate the parameters file in the context of the bicep template to be invoked. This will catch some errors before taking the time to start the full deployment.
+      - name: Validate Deploy of WebLogic Server Cluster Domain offer
+        id: validate-wls-cluster-deployment
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            az deployment group validate \
+            --debug \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --name wls-on-aks \
+            --parameters @cargotracker/src/test/aks/parameters.json \
+            --template-file ${artifactName}/mainTemplate.json
+      # Invoke the bicep template with the parameters file.
+      - name: Deploy WebLogic Server Cluster Domain offer
+        id: deploy-wls-cluster
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            az deployment group create \
+            --verbose \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --name wls-on-aks \
+            --parameters @cargotracker/src/test/aks/parameters.json \
+            --template-file ${artifactName}/mainTemplate.json
+      # Connect to AKS cluster for JMS configuration.
+      - name: Connect to AKS cluster
+        run: |
+          echo "connect to cluster"
+          aksClusterName=$(az resource list --resource-group ${{ env.resourceGroupForWlsAks }} --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" -o tsv)
+          az aks get-credentials --resource-group ${{ env.resourceGroupForWlsAks }} --name $aksClusterName
+      # Apply JMS configuration in src/test/aks/cargo-tracker-jms.yaml to configmap. This is necessary to have Cargo Tracker fully operational.
+      - name: Generate&Apply configmap
+        run: |
+          wlsConfigmapName=sample-domain1-wdt-config-map
+          wlsConfigmapJson=cargo-tracker-db.json
+          modelFilePath=models
+          mkdir ${modelFilePath}
+          echo "create configmap"
+          echo "export exisiting configmap"
+          kubectl -n sample-domain1-ns get configmap ${wlsConfigmapName} -o json >${wlsConfigmapJson}
+          echo "query model keys"
+          keyList=$(cat ${wlsConfigmapJson} | jq '.data | keys[]' | tr -d "\"")
+          for item in $keyList; do
+              data=$(cat ${wlsConfigmapJson} | jq ".data[\"${item}\"]")
+              data=$(echo "${data:1:${#data}-2}")
+              echo -e "${data}" >${modelFilePath}/${item}
+          done
+          # remove current configmap and create a new one
+          kubectl -n sample-domain1-ns delete configmap ${wlsConfigmapName}
+          cp cargotracker/src/test/aks/cargo-tracker-jms.yaml ${modelFilePath}/cargo-tracker-jms.yaml
+          kubectl -n sample-domain1-ns create configmap ${wlsConfigmapName} \
+          --from-file=${modelFilePath}
+          kubectl -n sample-domain1-ns label configmap ${wlsConfigmapName} \
+          weblogic.domainUID=sample-domain1
+          restartVersion=$(kubectl -n sample-domain1-ns get domain sample-domain1 '-o=jsonpath={.spec.restartVersion}')
+          # increase restart version
+          restartVersion=$((restartVersion + 1))
+          # record timestamp before apply changes
+          timestampBeforePatchingDomain=$(date +%s)
+          # get the replica number
+          replicas=$(kubectl -n sample-domain1-ns get domain sample-domain1 -o json | jq '. | .spec.clusters[] | .replicas')
+          echo "append configmap and update restart version"
+          kubectl -n sample-domain1-ns patch domain sample-domain1 \
+              --type=json \
+              '-p=[{"op": "replace", "path": "/spec/restartVersion", "value": "'${restartVersion}'" }, {"op": "add", "path": "/spec/configuration/model/configMap", "value": "'${wlsConfigmapName}'" }]'
+          echo "timestampBeforePatchingDomain=${timestampBeforePatchingDomain}" >> $GITHUB_ENV
+          echo "replicas=${replicas}" >> $GITHUB_ENV
+      # Make sure all the pods are running.
+      - name: Verify pods are restarted
+        run: |
+          # interval of checking pod status.
+          checkPodStatusInterval=20
+          # max attempt to check pod status.
+          checkPodStatusMaxAttemps=30
+          # domain and namespaces
+          wlsDomainUID="sample-domain1"
+          wlsDomainNS=${wlsDomainUID}-ns
+          updatedPodNum=0
+          attempt=0
+          echo $timestampBeforePatchingDomain $appReplicas $wlsDomainUID $checkPodStatusMaxAttemps $checkPodStatusInterval
+          while [[ ${updatedPodNum} -le ${appReplicas} ]] && [[ $attempt -le ${checkPodStatusMaxAttemps} ]]; do
+              echo "attempts ${attempt}"
+              ret=$(kubectl get pods -n ${wlsDomainNS} -l weblogic.domainUID=${wlsDomainUID} -o json | jq '.items[] | .metadata.creationTimestamp' | tr -d "\"")
+              counter=0
+              for item in $ret; do
+                  podCreateTimeStamp=$(date -u -d "${item}" +"%s")
+                  echo "pod create time: $podCreateTimeStamp, base time: ${timestampBeforePatchingDomain}"
+                  if [[ ${podCreateTimeStamp} -gt ${timestampBeforePatchingDomain} ]]; then
+                      counter=$((counter + 1))
+                  fi
+              done
+              updatedPodNum=$counter
+              echo "Number of new pod: ${updatedPodNum}"
+              attempt=$((attempt + 1))
+              sleep ${checkPodStatusInterval}
+          done
+          if [[ ${attempt} -gt ${checkPodStatusMaxAttemps} ]]; then
+              echo "Failed to restart all weblogic server pods. "
+              exit 1
+          fi
