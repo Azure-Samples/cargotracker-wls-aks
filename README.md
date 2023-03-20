@@ -1,4 +1,8 @@
-# Oracle WebLogic Server Cargo Tracker Application Deployed to Azure Kubernetes Service (AKS)
+# Deploy Cargo Tracker to Oracle WebLogic Server on Azure Kubernetes Service (AKS)
+
+The [official Azure offer for running WLS on AKS](https://aka.ms/wls-aks-portal) enables you to easily run a WebLogic applications on AKS. For a quickstart on this offer, see [https://aka.ms/wls-aks-quickstart](https://aka.ms/wls-aks-quickstart).
+
+This quickstart shows you how to deploy an existing Java WebLogic application to AKS. When you're finished, you can continue to manage the application via the Azure CLI or Azure Portal.
 
 ## Description
 
