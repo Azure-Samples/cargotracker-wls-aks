@@ -55,7 +55,7 @@ cd cargotracker-wls-aks
 mvn clean install -PweblogicOnAks --file pom.xml
 ```
 
-After the Maven command completes, the WAR file locates in `target` folder.
+After the Maven command completes, the WAR file locates in `target/cargo-tracker.war`.
 
 ### Clone WLS on AKS Bicep templates
 
@@ -66,6 +66,54 @@ git clone --branch 364b7648bbe395cb17683180401d07a3029abe91 https://github.com/o
 ```
 
 ### Create Azure Storage Account and upload the application
+
+To deploy a Java EE application along with the WLS on AKS offer deployment. You have to upload the application file (.war, .ear, or .jar) to a pre-existing Azure Storage Account and Storage Container within that account.
+
+Create an Azure Storage Account using the `az storage account create` command, as shown in the following example:
+
+```bash
+STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)"
+az storage account create \
+    --resource-group ${RESOURCE_GROUP_NAME} \
+    --name ${STORAGE_ACCOUNT_NAME} \
+    --location eastus \
+    --sku Standard_RAGRS \
+    --kind StorageV2
+```
+
+Create a container for storing blobs with the `az storage container create` command, with public access enabled.
+
+```bash
+KEY=$(az storage account keys list \
+    --resource-group ${RESOURCE_GROUP_NAME} \
+    --account-name ${STORAGE_ACCOUNT_NAME} \
+    --query [0].value -o tsv)
+
+az storage container create \
+    --account-name ${STORAGE_ACCOUNT_NAME} \
+    --name mycontainer \
+    --public-access container
+```
+
+Next, upload Cargo Tracker to a blob using the `az storage blob upload` command.
+
+```bash
+az storage blob upload \
+    --account-name ${STORAGE_ACCOUNT_NAME} \
+    --container-name mycontainer \
+    --name cargo-tracker.war \
+    --file target/cargo-tracker.war
+```
+
+Obtain the blob URL, as a deployment parameter.
+
+```bash
+cargoTrackerBlobUrl=$(az storage blob url \
+  --account-name ${STORAGE_ACCOUNT_NAME} \
+  --container-name mycontainer \
+  --name cargo-tracker.war -o tsv)
+APP_URL=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
+```
 
 ### Create PostgreSQL database server
 
@@ -79,7 +127,7 @@ git clone --branch 364b7648bbe395cb17683180401d07a3029abe91 https://github.com/o
 
 ### Configure JMS
 
-### Monitor WebLogic applications
+### Monitor WebLogic application
 
 ## Unit-2 - Automate deployments using GitHub Actions
 
