@@ -62,7 +62,8 @@ After the Maven command completes, the WAR file locates in `target/cargo-tracker
 Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure).
 
 ```bash
-git clone --branch 364b7648bbe395cb17683180401d07a3029abe91 https://github.com/oracle/weblogic-azure.git
+WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91"
+git clone --branch ${WLS_AKS_REPO_REF} https://github.com/oracle/weblogic-azure.git
 ```
 
 ### Sign in to Azure
@@ -127,7 +128,7 @@ az storage blob upload \
     --file target/cargo-tracker.war
 ```
 
-Obtain the blob URL, as a deployment parameter.
+Obtain the blob URL, which will be used as a deployment parameter.
 
 ```bash
 cargoTrackerBlobUrl=$(az storage blob url \
@@ -143,6 +144,7 @@ Use `az postgres server create` to provision a PostgreSQL instance on Azure. The
 
 ```bash
 DB_SERVER_NAME="wlsdb$(date +%s)"
+DB_PASSWORD="Secret123456"
 
 az postgres server create \
   --resource-group ${RESOURCE_GROUP_NAME} \
@@ -151,7 +153,7 @@ az postgres server create \
   --admin-user weblogic \
   --ssl-enforcement Disabled \
   --public-network-access Enabled \
-  --admin-password Secret123456 \
+  --admin-password ${DB_PASSWORD} \
   --sku-name B_Gen5_1
 
   echo "Allow Access To Azure Services"
@@ -163,7 +165,120 @@ az postgres server create \
   --end-ip-address "0.0.0.0"
 ```
 
+Obtain the JDBC connection string, which will be used as a deployment parameter.
+
+```bash
+DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azure.com:5432/postgres"
+```
+
 ### Prepare deployment parameter file
+
+```bash
+MY_ORACLE_SSO_USER="user@contoso.com" # please replace with your Oracle Account user name.
+MY_ORACLE_SSO_PASSWORD="Secret123456" # please replace with your Oracle Account password.
+MY_WEBLOGIC_ADMIN_USER_NAME="weblogic"
+MY_WEBLOGIC_ADMIN_PASSWORD="Secret123456"
+```
+
+```bash
+cat <<EOF >parameters.json
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "_artifactsLocation": {
+      "value": "https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/"
+    },
+    "aksAgentPoolNodeCount": {
+      "value": 2
+    },
+    "vmSize": {
+      "value": "Standard_DS2_v2"
+    },
+    "appGatewayCertificateOption": {
+      "value": "generateCert"
+    },
+    "appgwForAdminServer": {
+      "value": true
+    },
+    "appgwForRemoteConsole": {
+      "value": false
+    },
+    "appPackageUrls": {
+      "value": [
+        "${APP_URL}"
+      ]
+    },
+    "appReplicas": {
+      "value": 2
+    },
+    "createACR": {
+      "value": true
+    },
+    "createAKSCluster": {
+      "value": true
+    },
+    "databaseType": {
+      "value": "postgresql"
+    },
+    "dbGlobalTranPro": {
+      "value": "EmulateTwoPhaseCommit"
+    },
+    "dbPassword": {
+      "value": "${DB_PASSWORD}"
+    },
+    "dbUser": {
+      "value": "weblogic"
+    },
+    "dsConnectionURL": {
+      "value": "${DB_CONNECTION_STRING}"
+    },
+    "enableAppGWIngress": {
+      "value": true
+    },
+    "enableAzureMonitoring": {
+      "value": true
+    },
+    "enableAzureFileShare": {
+      "value": false
+    },
+    "enableDB": {
+      "value": true
+    },
+    "enableDNSConfiguration": {
+      "value": false
+    },
+    "enableCookieBasedAffinity": {
+      "value": true
+    },
+    "jdbcDataSourceName": {
+      "value": "jdbc/CargoTrackerDB"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "ocrSSOPSW": {
+      "value": "${MY_ORACLE_SSO_PASSWORD}"
+    },
+    "ocrSSOUser": {
+      "value": "${MY_ORACLE_SSO_USER}"
+    },
+    "wdtRuntimePassword": {
+      "value": "${MY_WEBLOGIC_ADMIN_PASSWORD}"
+    },
+    "wlsImageTag": {
+      "value": "14.1.1.0-11"
+    },
+    "wlsPassword": {
+      "value": "${MY_WEBLOGIC_ADMIN_PASSWORD}"
+    },
+    "wlsUserName": {
+      "value": "${MY_WEBLOGIC_ADMIN_USER_NAME}"
+    }
+  }
+}
+EOF
+```
 
 ### Invoke WLS on AKS Bicep template to deploy the application
 
