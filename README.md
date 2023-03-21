@@ -65,6 +65,28 @@ Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle
 git clone --branch 364b7648bbe395cb17683180401d07a3029abe91 https://github.com/oracle/weblogic-azure.git
 ```
 
+### Sign in to Azure
+
+If you haven't already, sign in to your Azure subscription by using the `az login` command and follow the on-screen directions.
+
+```bash
+az login
+```
+
+If you have multiple Azure tenants associated with your Azure credentials, you must specify which tenant you want to sign in to. You can do this with the `--tenant option`. For example, `az login --tenant contoso.onmicrosoft.com`.
+
+### Create a resource group
+
+Create a resource group with `az group create`. Resource group names must be globally unique within a subscription.
+
+```bash
+RESOURCE_GROUP_NAME="abc1110rg"
+
+az group create \
+    --name ${RESOURCE_GROUP_NAME} \
+    --location eastus
+```
+
 ### Create Azure Storage Account and upload the application
 
 To deploy a Java EE application along with the WLS on AKS offer deployment. You have to upload the application file (.war, .ear, or .jar) to a pre-existing Azure Storage Account and Storage Container within that account.
@@ -115,11 +137,33 @@ cargoTrackerBlobUrl=$(az storage blob url \
 APP_URL=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
 ```
 
-### Create PostgreSQL database server
+### Create an Azure Database for PostgreSQL instance
+
+Use `az postgres server create` to provision a PostgreSQL instance on Azure. The data server allows access from Azure Services.
+
+```bash
+DB_SERVER_NAME="wlsdb$(date +%s)"
+
+az postgres server create \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --name ${DB_SERVER_NAME}  \
+  --location eastus \
+  --admin-user weblogic \
+  --ssl-enforcement Disabled \
+  --public-network-access Enabled \
+  --admin-password Secret123456 \
+  --sku-name B_Gen5_1
+
+  echo "Allow Access To Azure Services"
+  az postgres server firewall-rule create \
+  -g ${RESOURCE_GROUP_NAME} \
+  -s ${DB_SERVER_NAME} \
+  -n "AllowAllWindowsAzureIps" \
+  --start-ip-address "0.0.0.0" \
+  --end-ip-address "0.0.0.0"
+```
 
 ### Prepare deployment parameter file
-
-### Login to Azure
 
 ### Invoke WLS on AKS Bicep template to deploy the application
 
