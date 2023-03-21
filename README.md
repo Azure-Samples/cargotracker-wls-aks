@@ -4,63 +4,84 @@ The [official Azure offer for running WLS on AKS](https://aka.ms/wls-aks-portal)
 
 This quickstart shows you how to deploy an existing Java WebLogic application to AKS. When you're finished, you can continue to manage the application via the Azure CLI or Azure Portal.
 
-## Description
-
-This is a sample app template of the Domain-Driven Design Jakarta EE application. The application is built with Maven and deployed to Oracle WebLogic Server running in Azure Kubernetes Service (AKS). The app template uses the [official Azure offer for running WLS on AKS](https://aka.ms/wls-aks-portal). For a quickstart on this offer, see [https://aka.ms/wls-aks-quickstart](https://aka.ms/wls-aks-quickstart). The application is exposed by Azure Application Gateway.
-
-## Deploy Oracle WebLogic Server Application to Azure Kubernetes Service:
-
---
-Tech stack:
-
-- Azure Infra (VNet)
-- Azure Storage Account
-- Azure Container Registry
-- Azure Kubernetes Service
-- Azure Application Gateway
-- Azure PostgreSQL DB
-- GitHub Actions
-- Bicep
-- Docker
-- Maven
-- Java
-
----
+* [Deploy Cargo Tracker to Oracle WebLogic Server on Azure Kubernetes Service (AKS)]()
+  * [Introduction](#introduction)
+  * [Prerequisites](#prerequisites)
+  * [Unit-1 - Deploy and monitor Cargo Tracker]()
+  * [Unit-2 - Automate deployments using GitHub Actions]()
+  * [Next Steps]()
 
 ## Introduction
 
-This is a quickstart template. It deploys the following:
-
-* Deploying Cargo Tracker App:
+In this quickstart, you will:
+* Build Cargo Tracker.
+* Deploying Cargo Tracker
   * Create ProgresSQL Database
-  * Create the Cargo Tracker - build with Maven
-  * Provisioning Azure Infra Services with ARM templates - build with BICEP
+  * Provisioning Azure Infra Services with Azure BICEP
     * Create an Azure Container Registry
-    * Build your app, Oracle WebLogic Server and domain configuration models into an image
-    * Push your app image to the container registry
+    * Build Cargo Tracker, Oracle WebLogic Server and domain configuration models into an image
+    * Push the application image to the container registry
     * Create an Azure Kubernetes Service  
-    * Deploy your app to AKS
+    * Deploy the application to AKS
     * Create an Azure Application Gateway
-    * Expose your app with the application gateway
-  * Verify your app
-
-* Cargo Tracker on Automated CI/CD with GitHub Action
-  * CI/CD on GitHub Action
-  * CI/CD in action with the app
-
-> Refer to the [App Templates](https://github.com/microsoft/App-Templates) repo Readme for more samples that are compatible with [AzureAccelerators](https://github.com/Azure/azure-dev/).
+    * Expose the application with the application gateway
+  * Verify the application
+  * Monitor application
+  * Automate deployments using GitHub Actions
 
 ## Prerequisites
 
-- Local shell with Azure CLI installed or [Azure Cloud Shell](https://ms.portal.azure.com/#cloudshell/)
+- Local shell with Azure CLI 2.45.0 or higher installed or [Azure Cloud Shell](https://ms.portal.azure.com/#cloudshell/)
 - Azure Subscription, on which you are able to create resources and assign permissions
   - View your subscription using ```az account show``` 
   - If you don't have an account, you can [create one for free](https://azure.microsoft.com/free). 
-- You must have an Oracle account. To create an Oracle account and accept the license agreement for WebLogic Server images, follow the steps in [Oracle Container Registry](https://aka.ms/wls-aks-ocr). Make note of your Oracle Account password and email.
+- An Oracle account. To create an Oracle account and accept the license agreement for WebLogic Server images, follow the steps in [Oracle Container Registry](https://aka.ms/wls-aks-ocr). Make note of your Oracle Account password and email.
 - GitHub CLI (optional, but strongly recommended). To install the GitHub CLI on your dev environment, see [Installation](https://cli.github.com/manual/installation).
 
+## Unit-1 - Deploy and monitor Cargo Tracker
 
-## Getting Started
+### Clone and build Cargo Tracker
+
+Clone the sample app repository to your development environment.
+
+```bash
+git clone https://github.com/Azure-Samples/cargotracker-wls-aks.git
+```
+
+Change directory and build the project.
+
+```bash
+cd cargotracker-wls-aks
+mvn clean install -PweblogicOnAks --file pom.xml
+```
+
+After the Maven command completes, the WAR file locates in `target` folder.
+
+### Clone WLS on AKS Bicep templates
+
+Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure).
+
+```bash
+git clone --branch 364b7648bbe395cb17683180401d07a3029abe91 https://github.com/oracle/weblogic-azure.git
+```
+
+### Create Azure Storage Account and upload the application
+
+### Create PostgreSQL database server
+
+### Prepare deployment parameter file
+
+### Login to Azure
+
+### Invoke WLS on AKS Bicep template to deploy the application
+
+* Create and configure Log Analytics Workspace
+
+### Configure JMS
+
+### Monitor WebLogic applications
+
+## Unit-2 - Automate deployments using GitHub Actions
 
 1. Fork the repository by clicking the 'Fork' button on the top right of the page.
 This creates a local copy of the repository for you to work in. 
