@@ -7,8 +7,19 @@ This quickstart shows you how to deploy an existing Java WebLogic application to
 * [Deploy Cargo Tracker to Oracle WebLogic Server on Azure Kubernetes Service (AKS)]()
   * [Introduction](#introduction)
   * [Prerequisites](#prerequisites)
-  * [Unit-1 - Deploy and monitor Cargo Tracker]()
-  * [Unit-2 - Automate deployments using GitHub Actions]()
+  * [Unit-1 - Deploy and monitor Cargo Tracker](#unit-1---deploy-and-monitor-cargo-tracker)
+    * [Clone and build Cargo Tracker](#clone-and-build-cargo-tracker)
+    * [Prepare your variables for deployments](#prepare-your-variables-for-deployments)
+    * [Clone WLS on AKS Bicep templates](#clone-wls-on-aks-bicep-templates)
+    * [Sign in to Azure](#sign-in-to-azure)
+    * [Create a resource group](#create-a-resource-group)
+    * [Create Azure Storage Account and upload the application](#create-azure-storage-account-and-upload-the-application)
+    * [Create an Azure Database for PostgreSQL instance](#create-an-azure-database-for-postgresql-instance)
+    * [Prepare deployment parameters](#prepare-deployment-parameters)
+    * [Invoke WLS on AKS Bicep template to deploy the application](#invoke-wls-on-aks-bicep-template-to-deploy-the-application)
+    * [Configure JMS](#configure-jms)
+    * [Monitor WebLogic application](#monitor-weblogic-application)
+  * [Unit-2 - Automate deployments using GitHub Actions](#unit-2---automate-deployments-using-github-actions)
   * [Next Steps]()
 
 ## Introduction
@@ -36,7 +47,12 @@ In this quickstart, you will:
   - View your subscription using ```az account show``` 
   - If you don't have an account, you can [create one for free](https://azure.microsoft.com/free). 
 - An Oracle account. To create an Oracle account and accept the license agreement for WebLogic Server images, follow the steps in [Oracle Container Registry](https://aka.ms/wls-aks-ocr). Make note of your Oracle Account password and email.
-- GitHub CLI (optional, but strongly recommended). To install the GitHub CLI on your dev environment, see [Installation](https://cli.github.com/manual/installation).
+- We strongly recommend you to use Azure Cloud Shell. For local shell, make sure you have the following tools intalled.
+  - A Java JDK, Version 11. Azure recommends [Microsoft Build of OpenJDK](https://learn.microsoft.com/en-us/java/openjdk/download). Ensure that your `JAVA_HOME` environment
+  - [Git](https://git-scm.com/downloads). use `git --version` to test whether git works. This tutorial was tested with version 2.25.1.
+  - GitHub CLI (optional, but strongly recommended). To install the GitHub CLI on your dev environment, see [Installation](https://cli.github.com/manual/installation).
+  - [kubectl](https://kubernetes-io-vnext-staging.netlify.com/docs/tasks/tools/install-kubectl/); use `kubectl version` to test if kubectl works. This document was tested with version v1.21.1.
+  - [Maven](https://maven.apache.org/download.cgi). use `mvn -version` to test whether `mvn` works. This tutorial was tested with version 3.6.3.
 
 ## Unit-1 - Deploy and monitor Cargo Tracker
 
@@ -59,12 +75,41 @@ mvn clean install -PweblogicOnAks --file ${DIR}/cargotracker/pom.xml
 
 After the Maven command completes, the WAR file locates in `${DIR}/cargotracker/target/cargo-tracker.war`.
 
+### Prepare your variables for deployments
+
+Create a bash script with environment variables by making a copy of the supplied template:
+
+```bash
+cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotracker/.scripts/setup-env-variables.sh
+```
+
+Open .scripts/setup-env-variables.sh and enter the following information. Make sure your Oracle SSO user name and password are correct.
+
+```bash
+export WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91" # oracle/weblogic-azure reference
+export RESOURCE_GROUP_NAME="abc1110rg" # customize this
+export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
+export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
+export DB_PASSWORD="Secret123456" # PostgreSQL database password
+
+export MY_ORACLE_SSO_USER="user@contoso.com" # replace with your Oracle Account user name.
+export MY_ORACLE_SSO_PASSWORD="Secret123456" # replace with your Oracle Account password.
+
+export MY_WEBLOGIC_ADMIN_USER_NAME="weblogic" # weblogic admin user name
+export MY_WEBLOGIC_ADMIN_PASSWORD="Secret123456" # weblogic admin password
+```
+
+Then, set the environment:
+
+```bash
+source ${DIR}/cargotracker/.scripts/setup-env-variables.sh
+```
+
 ### Clone WLS on AKS Bicep templates
 
 Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 364b764](https://github.com/oracle/weblogic-azure/commit/364b7648bbe395cb17683180401d07a3029abe91). 
 
 ```bash
-WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91"
 git clone https://github.com/oracle/weblogic-azure.git ${DIR}/weblogic-azure
 
 cd ${DIR}/weblogic-azure
@@ -88,8 +133,6 @@ If you have multiple Azure tenants associated with your Azure credentials, you m
 Create a resource group with `az group create`. Resource group names must be globally unique within a subscription.
 
 ```bash
-RESOURCE_GROUP_NAME="abc1110rg"
-
 az group create \
     --name ${RESOURCE_GROUP_NAME} \
     --location eastus
@@ -102,7 +145,6 @@ To deploy a Java EE application along with the WLS on AKS offer deployment. You 
 Create an Azure Storage Account using the `az storage account create` command, as shown in the following example:
 
 ```bash
-STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)"
 az storage account create \
     --resource-group ${RESOURCE_GROUP_NAME} \
     --name ${STORAGE_ACCOUNT_NAME} \
@@ -114,11 +156,6 @@ az storage account create \
 Create a container for storing blobs with the `az storage container create` command, with public access enabled.
 
 ```bash
-KEY=$(az storage account keys list \
-    --resource-group ${RESOURCE_GROUP_NAME} \
-    --account-name ${STORAGE_ACCOUNT_NAME} \
-    --query [0].value -o tsv)
-
 az storage container create \
     --account-name ${STORAGE_ACCOUNT_NAME} \
     --name mycontainer \
@@ -138,11 +175,10 @@ az storage blob upload \
 Obtain the blob URL, which will be used as a deployment parameter.
 
 ```bash
-cargoTrackerBlobUrl=$(az storage blob url \
+APP_URL=$(az storage blob url \
   --account-name ${STORAGE_ACCOUNT_NAME} \
   --container-name mycontainer \
   --name cargo-tracker.war -o tsv)
-APP_URL=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
 ```
 
 ### Create an Azure Database for PostgreSQL instance
@@ -150,9 +186,6 @@ APP_URL=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
 Use `az postgres server create` to provision a PostgreSQL instance on Azure. The data server allows access from Azure Services.
 
 ```bash
-DB_SERVER_NAME="wlsdb$(date +%s)"
-DB_PASSWORD="Secret123456"
-
 az postgres server create \
   --resource-group ${RESOURCE_GROUP_NAME} \
   --name ${DB_SERVER_NAME}  \
@@ -178,18 +211,9 @@ Obtain the JDBC connection string, which will be used as a deployment parameter.
 DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azure.com:5432/postgres"
 ```
 
-### Prepare deployment parameter file
+### Prepare deployment parameters
 
 Several parameters are required to invoke the Bicep templates. Parameters and their value are listed in the table. Make sure the variables have correct value.
-
-Create variables for Oracle account and WebLogic admin.
-
-```bash
-MY_ORACLE_SSO_USER="user@contoso.com" # please replace with your Oracle Account user name.
-MY_ORACLE_SSO_PASSWORD="Secret123456" # please replace with your Oracle Account password.
-MY_WEBLOGIC_ADMIN_USER_NAME="weblogic"
-MY_WEBLOGIC_ADMIN_PASSWORD="Secret123456"
-```
 
 | Parameter Name | Value | Note |
 | -------------| ---------- | -----------------|
@@ -200,10 +224,11 @@ MY_WEBLOGIC_ADMIN_PASSWORD="Secret123456"
 | `databaseType` | `postgresql` | This quickstart uses Azure Database for PostgreSQL. |
 | `dbGlobalTranPro` | `EmulateTwoPhaseCommit` | To ensure Cargo Tracker work correctly, `dbGlobalTranPro` must be `EmulateTwoPhaseCommit`. |
 | `dbPassword` | `${DB_PASSWORD}` | The password of PostgreSQL database . |
-| `dbUser` | `weblogic` | The username of PostgreSQL database. This quickstart uses `weblogic`. |
+| `dbUser` | `weblogic@${DB_SERVER_NAME}` | The username of PostgreSQL database. This quickstart uses `weblogic`. |
 | `dsConnectionURL` | `${DB_CONNECTION_STRING}` | The connection string of PostgreSQL database. |
 | `enableAppGWIngress` | `true` | This value causes provisioning of Azure Application Gateway Ingress Controller and ingress for WLS admin server and cluster. |
 | `enableAzureMonitoring` | `true` | This value causes provisioning Azure Monitor. |
+| `enableAzureFileShare` | `true`  | The Java agent of Application Insights will be stored in the persistent volume. |
 | `enableCookieBasedAffinity` | `true` | This value causes the template to enable Application Gateway Cookie Affinity. |
 | `jdbcDataSourceName` | `jdbc/CargoTrackerDB` | This value is defined in Cargo Tracker, do not change it. |
 | `ocrSSOPSW` | `${MY_ORACLE_SSO_PASSWORD}` | |
@@ -225,7 +250,7 @@ cat <<EOF >parameters.json
       "value": "https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/"
     },
     "aksAgentPoolNodeCount": {
-      "value": 2
+      "value": 3
     },
     "vmSize": {
       "value": "Standard_DS2_v2"
@@ -263,7 +288,7 @@ cat <<EOF >parameters.json
       "value": "${DB_PASSWORD}"
     },
     "dbUser": {
-      "value": "weblogic"
+      "value": "weblogic@${DB_SERVER_NAME}"
     },
     "dsConnectionURL": {
       "value": "${DB_CONNECTION_STRING}"
@@ -275,7 +300,7 @@ cat <<EOF >parameters.json
       "value": true
     },
     "enableAzureFileShare": {
-      "value": false
+      "value": true
     },
     "enableDB": {
       "value": true
@@ -341,7 +366,7 @@ az deployment group create \
   --template-file ${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep
 ```
 
-It takes more than 1 hour to finish the deployment.
+It takes more than 1 hour to finish the deployment. The WebLogic cluster is running in namespace `sample-domain1-ns`.
 
 ### Configure JMS
 
@@ -349,28 +374,173 @@ Once the deployment completes, you are able to access Cargo Tracker using the ou
 
 1. Connect to AKS
 
-Run the following commands to obtain AKS resource name.
+    Run the following commands to obtain AKS resource name.
 
-```bash
-AKS_NAME=$(az resource list \
-  --resource-group ${RESOURCE_GROUP_NAME} \
-  --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" \
-  -o tsv)
-```
+    ```bash
+    AKS_NAME=$(az resource list \
+      --resource-group ${RESOURCE_GROUP_NAME} \
+      --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" \
+      -o tsv)
+    ```
 
-Connect to AKS cluster.
+    Connect to AKS cluster.
 
-```bash
-az aks get-credentials --resource-group ${RESOURCE_GROUP_NAME} --name $AKS_NAME
-```
+    ```bash
+    az aks get-credentials --resource-group ${RESOURCE_GROUP_NAME} --name $AKS_NAME
+    ```
 
 1. Apply JMS configuration
 
+    The following commands use `kubectl patch configmap` to apply the JMS configuration to the existing configmap `sample-domain1-wdt-config-map`. 
 
+    ```bash
+    CONFIGMAP_NAME="sample-domain1-wdt-config-map"
+    # Get the content of JMS configuration from src/test/aks/cargo-tracker-jms.yaml.
+    CM_JMS_DATA=$(kubectl create configmap ${CONFIGMAP_NAME} -n sample-domain1-ns \
+      --from-file=${DIR}/cargotracker/src/test/aks/cargo-tracker-jms.yaml \
+      --dry-run=client \
+      -o jsonpath='{.data}')
+    # Patch JMS configuration to configmap sample-domain1-wdt-config-map.
+    kubectl patch configmap ${CONFIGMAP_NAME} -n sample-domain1-ns \
+      --type merge -p '{"data":'"$CM_JMS_DATA"'}'
+    ```
 
-1. Roll update the WLS cluster
+1. Rolling update on the WLS cluster
+
+    To cause the patched configmap working, run the following command to perform a rolling update on the WLS cluster. 
+
+    ```bash
+    VERSION=$(kubectl -n sample-domain1-ns get domain sample-domain1 '-o=jsonpath={.spec.restartVersion}')
+    VERSION=$((VERSION + 1))
+
+    kubectl -n sample-domain1-ns patch domain sample-domain1 \
+      --type=json \
+      '-p=[{"op": "replace", "path": "/spec/restartVersion", "value": "'${VERSION}'" }]'
+
+    kubectl get pod -n sample-domain1-ns -w
+    ```
+
+    You should find one admin server pod and two managed server pods are restarted. Their status are running in the end.
 
 ### Monitor WebLogic application
+
+This section uses Application Insights and Azure Log Analytics to monitor WebLogic Server and Cargo Tracker. The template automatically provisions Azure Container Insights and Azure Log Analytics, you can find the resource from your working resource group.
+
+#### Create Application Insights
+
+To integrate with Application Insights, you need to have an Application Insights instance and expose metrics to it using the Java agent.
+
+1. Create an Application Insights instance
+
+    Run the following commands to create Application Insights, it will share the same workspace with Container Insights.
+
+    First, install or upgrade `application-insights` extension.
+
+    ```bash
+    az extension add --upgrade -n application-insights
+    ```
+
+    Next, provision Application Insights.
+
+    ```bash
+    WORKSPACE_ID=$(az resource list \
+      --resource-group ${RESOURCE_GROUP_NAME} \
+      --query "[?type=='Microsoft.OperationalInsights/workspaces'].name|[0]" \
+      -o tsv)
+
+    az monitor app-insights component create \
+      --app appinsightwlsakscargotracker \
+      --location eastus \
+      --resource-group ${RESOURCE_GROUP_NAME} \
+      --workspace ${WORKSPACE_ID}
+    ```
+
+1. Connect to Application Insights.
+
+    First, obtain the connection string of Application Insights.
+
+    ```bash
+    APPLICATIONINSIGHTS_CONNECTION_STRING=$(az monitor app-insights component show \
+      --resource-group ${RESOURCE_GROUP_NAME} \
+      --query '[0].connectionString' -o tsv)
+    ```
+
+    Download [applicationinsights-agent-3.4.10.jar](https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar).
+
+    ```bash
+    curl -LO https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar 
+    ```
+    
+    Upload the Java agent to WLS cluster persistent volumn and save in `/shared/libs/applicationinsights-agent-3.4.10.jar`. The following commands copy the JAR file to PV of admin server pod, which is shared by all the WLS pods.
+
+    ```bash
+    kubectl exec -n sample-domain1-ns -it sample-domain1-admin-server -- /bin/bash -c "mkdir /shared/libs"
+    kubectl cp -n sample-domain1-ns applicationinsights-agent-3.4.10.jar sample-domain1-admin-server:/shared/libs/applicationinsights-agent-3.4.10.jar
+    ```
+
+    Now, the Application Insight Java agent is stored in `/shared/libs/applicationinsights-agent-3.4.10.jar` and shared by all the WLS pods.
+
+    Run the following commands to configure and connect to Application Insights.
+
+    ```bash
+    WLS_DOMAIN_NS=sample-domain1-ns
+    WLS_DOMAIN_UID=sample-domain1
+    AGENT_PATH="-javaagent:/shared/libs/applicationinsights-agent-3.4.10.jar"
+
+    JAVA_OPTIONS=$(kubectl -n ${WLS_DOMAIN_NS} get domain ${WLS_DOMAIN_UID} -o json | jq '. | .spec.serverPod.env | .[] | select(.name=="JAVA_OPTIONS") | .value' | tr -d "\"")
+    JAVA_OPTIONS="${AGENT_PATH} ${JAVA_OPTIONS}"
+
+    JAVA_OPTIONS_INDEX=$(kubectl -n ${WLS_DOMAIN_NS} get domain ${WLS_DOMAIN_UID} -o json  | jq '.spec.serverPod.env | map(.name == "JAVA_OPTIONS") | index(true)')
+
+    VERSION=$(kubectl -n ${WLS_DOMAIN_NS} get domain ${WLS_DOMAIN_UID} -o json | jq '. | .spec.restartVersion' | tr -d "\"")
+    VERSION=$((VERSION+1))
+
+    cat <<EOF >patch-file.json
+    [
+        {
+            "op": "replace",
+            "path": "/spec/restartVersion",
+            "value": "${VERSION}"
+        },
+        {
+            "op": "remove",
+            "path": "/spec/serverPod/env/${JAVA_OPTIONS_INDEX}"
+        },
+        {
+            "op": "add",
+            "path": "/spec/serverPod/env/-",
+            "value": {
+                "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                "value": "${APPLICATIONINSIGHTS_CONNECTION_STRING}"
+            }
+        },
+        {
+            "op": "add",
+            "path": "/spec/serverPod/env/-",
+            "value": {
+                "name": "JAVA_OPTIONS",
+                "value": "${JAVA_OPTIONS}"
+            }
+        }
+    ]
+    EOF
+
+    kubectl -n ${WLS_DOMAIN_NS} patch domain ${WLS_DOMAIN_UID} \
+            --type=json \
+            --patch-file patch-file.json
+
+    kubectl get pod -n ${WLS_DOMAIN_NS} -w
+    ```
+
+    You should find one admin server pod and two managed server pods are restarted. Their status are running in the end.
+
+#### Start monitoring Cargo Tracker in Application Insights
+
+
+
+#### Start monitoring WebLogic logs in Azure Log Analytics
+
+#### Start monitoring Cargo Tracker logs in Azure Log Analytics
 
 ## Unit-2 - Automate deployments using GitHub Actions
 
