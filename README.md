@@ -45,25 +45,32 @@ In this quickstart, you will:
 Clone the sample app repository to your development environment.
 
 ```bash
-git clone https://github.com/Azure-Samples/cargotracker-wls-aks.git
+mkdir cargotracker-wls-aks
+DIR="$PWD/cargotracker-wls-aks"
+
+git clone https://github.com/Azure-Samples/cargotracker-wls-aks.git ${DIR}/cargotracker
 ```
 
 Change directory and build the project.
 
 ```bash
-cd cargotracker-wls-aks
-mvn clean install -PweblogicOnAks --file pom.xml
+mvn clean install -PweblogicOnAks --file ${DIR}/cargotracker/pom.xml
 ```
 
-After the Maven command completes, the WAR file locates in `target/cargo-tracker.war`.
+After the Maven command completes, the WAR file locates in `${DIR}/cargotracker/target/cargo-tracker.war`.
 
 ### Clone WLS on AKS Bicep templates
 
-Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure).
+Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 364b764](https://github.com/oracle/weblogic-azure/commit/364b7648bbe395cb17683180401d07a3029abe91). 
 
 ```bash
 WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91"
-git clone --branch ${WLS_AKS_REPO_REF} https://github.com/oracle/weblogic-azure.git
+git clone https://github.com/oracle/weblogic-azure.git ${DIR}/weblogic-azure
+
+cd ${DIR}/weblogic-azure
+git checkout ${WLS_AKS_REPO_REF}
+
+cd ${DIR}
 ```
 
 ### Sign in to Azure
@@ -125,7 +132,7 @@ az storage blob upload \
     --account-name ${STORAGE_ACCOUNT_NAME} \
     --container-name mycontainer \
     --name cargo-tracker.war \
-    --file target/cargo-tracker.war
+    --file ${DIR}/cargotracker/target/cargo-tracker.war
 ```
 
 Obtain the blob URL, which will be used as a deployment parameter.
@@ -173,12 +180,40 @@ DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azur
 
 ### Prepare deployment parameter file
 
+Several parameters are required to invoke the Bicep templates. Parameters and their value are listed in the table. Make sure the variables have correct value.
+
+Create variables for Oracle account and WebLogic admin.
+
 ```bash
 MY_ORACLE_SSO_USER="user@contoso.com" # please replace with your Oracle Account user name.
 MY_ORACLE_SSO_PASSWORD="Secret123456" # please replace with your Oracle Account password.
 MY_WEBLOGIC_ADMIN_USER_NAME="weblogic"
 MY_WEBLOGIC_ADMIN_PASSWORD="Secret123456"
 ```
+
+| Parameter Name | Value | Note |
+| -------------| ---------- | -----------------|
+| `_artifactsLocation` | `https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/` | This quickstart is using templates and scripts from `oracle/weblogic-azure/${WLS_AKS_REPO_REF}` |
+| `appgwForAdminServer` | `true` | The admin server will be exposed by Application Gateway. |
+| `appgwForRemoteConsole` | `false` | WebLogic Remote Console is not required in this quickstart. |
+| `appPackageUrls` | `["${APP_URL}"]` | An array includes Cargo Tracker blob URL. |
+| `databaseType` | `postgresql` | This quickstart uses Azure Database for PostgreSQL. |
+| `dbGlobalTranPro` | `EmulateTwoPhaseCommit` | To ensure Cargo Tracker work correctly, `dbGlobalTranPro` must be `EmulateTwoPhaseCommit`. |
+| `dbPassword` | `${DB_PASSWORD}` | The password of PostgreSQL database . |
+| `dbUser` | `weblogic` | The username of PostgreSQL database. This quickstart uses `weblogic`. |
+| `dsConnectionURL` | `${DB_CONNECTION_STRING}` | The connection string of PostgreSQL database. |
+| `enableAppGWIngress` | `true` | This value causes provisioning of Azure Application Gateway Ingress Controller and ingress for WLS admin server and cluster. |
+| `enableAzureMonitoring` | `true` | This value causes provisioning Azure Monitor. |
+| `enableCookieBasedAffinity` | `true` | This value causes the template to enable Application Gateway Cookie Affinity. |
+| `jdbcDataSourceName` | `jdbc/CargoTrackerDB` | This value is defined in Cargo Tracker, do not change it. |
+| `ocrSSOPSW` | `${MY_ORACLE_SSO_PASSWORD}` | |
+| `ocrSSOUser` | `${MY_ORACLE_SSO_USER}` | |
+| `wdtRuntimePassword` | `${MY_WEBLOGIC_ADMIN_PASSWORD}` | |
+| `wlsImageTag` | `14.1.1.0-11` | Cargo Tracker runs on WLS 14 and JDK 11. Do not change the value. |
+| `wlsPassword` | `${MY_WEBLOGIC_ADMIN_PASSWORD}` | |
+| `wlsUserName` | `${MY_WEBLOGIC_ADMIN_USER_NAME}` | |
+
+Create parameter file.
 
 ```bash
 cat <<EOF >parameters.json
@@ -282,9 +317,58 @@ EOF
 
 ### Invoke WLS on AKS Bicep template to deploy the application
 
-* Create and configure Log Analytics Workspace
+Invoke the Bicep template in `${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep` to deploy Cargo Tracker to WLS on AKS.
+
+Run the following command to validate the parameter file.
+
+```bash
+az deployment group validate \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --name wls-on-aks \
+  --parameters @parameters.json \
+  --template-file ${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep
+```
+
+The command should complete without error. If there is, you must resolve it before moving on.
+
+Next, invoke the template.
+
+```bash
+az deployment group create \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --name wls-on-aks \
+  --parameters @parameters.json \
+  --template-file ${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep
+```
+
+It takes more than 1 hour to finish the deployment.
 
 ### Configure JMS
+
+Once the deployment completes, you are able to access Cargo Tracker using the output URL. To have Cargo Tracker fully operational, you need to configure JMS.
+
+1. Connect to AKS
+
+Run the following commands to obtain AKS resource name.
+
+```bash
+AKS_NAME=$(az resource list \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" \
+  -o tsv)
+```
+
+Connect to AKS cluster.
+
+```bash
+az aks get-credentials --resource-group ${RESOURCE_GROUP_NAME} --name $AKS_NAME
+```
+
+1. Apply JMS configuration
+
+
+
+1. Roll update the WLS cluster
 
 ### Monitor WebLogic application
 
