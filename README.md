@@ -20,7 +20,7 @@ This quickstart shows you how to deploy an existing Java WebLogic application to
     * [Configure JMS](#configure-jms)
     * [Monitor WebLogic application](#monitor-weblogic-application)
   * [Unit-2 - Automate deployments using GitHub Actions](#unit-2---automate-deployments-using-github-actions)
-  * [Appendix 1 - Exercise Cargo Tracker Functionality]()
+  * [Appendix 1 - Exercise Cargo Tracker Functionality](#appendix-1---exercise-cargo-tracker-functionality)
 
 ## Introduction
 
@@ -536,7 +536,7 @@ To integrate with Application Insights, you need to have an Application Insights
 
 #### Use Cargo Trakcer and make a few HTTP calls
 
-You can open Cargo Tracker and follow [Appendix 1 - Exercise Cargo Tracker Functionality]() to make some calls.
+You can open Cargo Tracker in your web browser and follow [Appendix 1 - Exercise Cargo Tracker Functionality](#appendix-1---exercise-cargo-tracker-functionality) to make some calls.
 
 Use the following commands to obtain URL of Cargo Trakcer:
 
@@ -554,7 +554,8 @@ echo "Cargo Tracker URL: ${CARGO_TRACKER_URL}"
 
 You can also `curl` the REST API exposed by Cargo Trakcer. 
 
-The `/graph-traversal/shortest-path` REST API allows you to retrive shortest path from origin to destination. Note that 
+The `/graph-traversal/shortest-path` REST API allows you to retrive shortest path from origin to destination.
+
 The API requires three parameters:
 
 | Paramater Name | Value |
@@ -598,7 +599,7 @@ EOF
 curl -X POST -d "@data.json" -H "Content-Type: application/json" ${CARGO_TRACKER_URL}rest/handling/reports
 ```
 
-You can use Application Insights to detect the failures. Run the following `curl` command to cause a failed call. The REST API fails at missiong `trackingId`.
+You can use Application Insights to detect failures. Run the following `curl` command to cause a failed call. The REST API fails at missing `trackingId`.
 
 ```bash
 DATE=$(date +'%m/%d/%Y %I:%M %p')
@@ -616,7 +617,37 @@ curl -X POST -d "@data.json" -H "Content-Type: application/json" ${CARGO_TRACKER
 
 #### Start monitoring Cargo Tracker in Application Insights
 
+Open the Application Insights and start monitoring Cargo Tracker. You can find the Application Insights in the same Resource Group where you created deployments using Bicep templates.
 
+Navigate to the `Application Map` blade:
+
+![Cargo Tracker Application Map in Application Insights](media/app-insights-app-map.png)
+
+Navigate to the `Performance` blade:
+
+![Cargo Tracker Performance in Application Insights](media/app-insights-performance.png)
+
+Select operation **POST /cargo-tracker/rest/handling/reports**, select **Drill into...**, **number-N Samples** you will find the operations are listed in the right panel.
+
+Select the first operation with response code 204, the **End-to-end transaction details** page shows.
+
+![Cargo Tracker transaction details in Application Insights](media/app-insights-reports-end-to-end-transaction.png)
+
+Select the **View all** button in **Traces & events** panel, the traces and events are listed.
+
+![Cargo Tracker traces and events in Application Insights](media/app-insights-reports-traces.png)
+
+Navigate to the `Failures/Exceptions` blade - you can see a collection of exceptions:
+
+![Cargo Tracker Failures in Application Insights](media/app-insights-failures.png)
+
+Click on an exception to see the end-to-end transaction and stacktrace in context:
+
+![Cargo Tracker stacktrace in Application Insights](media/app-insights-failure-details.png)
+
+Navigate to the Live Metrics blade - you can see live metrics on screen with low latencies < 1 second:
+
+![Cargo Tracker Live Metrics in Application Insights](media/app-insights-live-metrics.png)
 
 #### Start monitoring WebLogic logs in Azure Log Analytics
 
