@@ -20,7 +20,7 @@ This quickstart shows you how to deploy an existing Java WebLogic application to
     * [Configure JMS](#configure-jms)
     * [Monitor WebLogic application](#monitor-weblogic-application)
   * [Unit-2 - Automate deployments using GitHub Actions](#unit-2---automate-deployments-using-github-actions)
-  * [Next Steps]()
+  * [Appendix 1 - Exercise Cargo Tracker Functionality]()
 
 ## Introduction
 
@@ -534,6 +534,86 @@ To integrate with Application Insights, you need to have an Application Insights
 
     You should find one admin server pod and two managed server pods are restarted. Their status are running in the end.
 
+#### Use Cargo Trakcer and make a few HTTP calls
+
+You can open Cargo Tracker and follow [Appendix 1 - Exercise Cargo Tracker Functionality]() to make some calls.
+
+Use the following commands to obtain URL of Cargo Trakcer:
+
+```bash
+GATEWAY_PUBLICIP_ID=$(az network application-gateway list \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --query '[0].frontendIPConfigurations[0].publicIPAddress.id' -o tsv)
+
+GATEWAY_URL=$(az network public-ip show --ids ${GATEWAY_PUBLICIP_ID} --query 'dnsSettings.fqdn' -o tsv)
+
+CARGO_TRACKER_URL="http://${GATEWAY_URL}/cargo-tracker/"
+
+echo "Cargo Tracker URL: ${CARGO_TRACKER_URL}"
+```
+
+You can also `curl` the REST API exposed by Cargo Trakcer. 
+
+The `/graph-traversal/shortest-path` REST API allows you to retrive shortest path from origin to destination. Note that 
+The API requires three parameters:
+
+| Paramater Name | Value |
+| ------------------| ----------------- |
+| `origin` | The UN location code value of origin and destination must be five characters long, the first two must be alphabetic and the last three must be alphanumeric (excluding 0 and 1). |
+| `destination` | The UN location code value of origin and destination must be five characters long, the first two must be alphabetic and the last three must be alphanumeric (excluding 0 and 1). |
+| `deadline` | **Optional**. Deadline value must be eight characters long. |
+
+You can run the following curl command:
+
+```bash
+curl -X GET -H "Accept: application/json" "${CARGO_TRACKER_URL}rest/graph-traversal/shortest-path?origin=CNHKG&destination=USNYC"
+```
+
+The `/handling/reports` REST API allows you to sends an asynchronous message with the information to the handling event registration system for proper registration.
+
+The API requires three parameters:
+
+| Paramater Name | Value |
+| ------------------| ----------------- |
+| `completionTime` | Must be ClockHourOfAmPm. Format: `m/d/yyyy HH:MM tt`, e.g `3/29/2023 9:30 AM` |
+| `trackingId` | Tracking ID must be at least four characters. |
+| `eventType` | Event type value must be one of: RECEIVE, LOAD, UNLOAD, CUSTOMS, CLAIM. |
+| `unLocode` | The UN location code value of origin and destination must be five characters long, the first two must be alphabetic and the last three must be alphanumeric (excluding 0 and 1). |
+| `voyageNumber` | **Optional**. Voyage number value must be between four and five characters long. |
+
+You can run the following `curl` command to load onto voyage 0200T in New York for trackingId of `ABC123`:
+
+```bash
+DATE=$(date +'%m/%d/%Y %I:%M %p')
+cat <<EOF >data.json
+{
+  "completionTime": "${DATE}",
+  "trackingId": "ABC123",
+  "eventType": "UNLOAD",
+  "unLocode": "USNYC",
+  "voyageNumber": "0200T"
+}
+EOF
+
+curl -X POST -d "@data.json" -H "Content-Type: application/json" ${CARGO_TRACKER_URL}rest/handling/reports
+```
+
+You can use Application Insights to detect the failures. Run the following `curl` command to cause a failed call. The REST API fails at missiong `trackingId`.
+
+```bash
+DATE=$(date +'%m/%d/%Y %I:%M %p')
+cat <<EOF >data.json
+{
+  "completionTime": "${DATE}",
+  "eventType": "UNLOAD",
+  "unLocode": "USNYC",
+  "voyageNumber": "0200T"
+}
+EOF
+
+curl -X POST -d "@data.json" -H "Content-Type: application/json" ${CARGO_TRACKER_URL}rest/handling/reports
+```
+
 #### Start monitoring Cargo Tracker in Application Insights
 
 
@@ -650,7 +730,7 @@ If you wish to view the Cargo Tracker Deployment, you have the following options
 - Select **Settings**, **Deployments**, **wls-on-aks**, **Outputs**, you will see `clusterExternalUrl`. The application URL is `${clusterExternalUrl}cargo-tracker/`.
 - Open your web browser, navigate to the application URL, you will see the Cargo Tracker landing page.
 
-## Exercise Cargo Tracker Functionality
+## Appendix 1 - Exercise Cargo Tracker Functionality
 
 1. On the main page, select **Public Tracking Interface** in new window. 
 
