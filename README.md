@@ -651,6 +651,57 @@ Navigate to the Live Metrics blade - you can see live metrics on screen with low
 
 #### Start monitoring WebLogic logs in Azure Log Analytics
 
+Open the Log Analytics that the Bicep template created.
+
+In the Log Analyics page, selects `Logs` blade and run any of the sample queries supplied below for WebLogic logs.
+
+First, get the pod name of each server.
+
+```bash
+kubectl get pod -n sample-domain1-ns
+```
+
+You will get output like the following content.
+
+```text
+NAME                             READY   STATUS    RESTARTS   AGE
+sample-domain1-admin-server      1/1     Running   0          10h
+sample-domain1-managed-server1   1/1     Running   0          41h
+sample-domain1-managed-server2   1/1     Running   0          32h
+```
+
+Type and run the following Kusto query to see WebLogic admin server logs:
+
+```sql
+ContainerInventory
+| where ContainerHostname == 'sample-domain1-admin-server' 
+| project ContainerID
+| take 1
+| join (ContainerLog
+    | project  ContainerID, LogEntry, TimeGenerated)
+    on ContainerID
+| sort by TimeGenerated
+| limit 500
+| project LogEntry
+```
+
+Type and run the following Kusto query to see WebLogic managed server logs:
+
+```sql
+ContainerInventory
+| where ContainerHostname == 'sample-domain1-managed-server1' 
+| project ContainerID
+| take 1
+| join (ContainerLog
+    | project  ContainerID, LogEntry, TimeGenerated)
+    on ContainerID
+| sort by TimeGenerated
+| limit 500
+| project LogEntry
+```
+
+You can change the managed server name to query expected server logs.
+
 #### Start monitoring Cargo Tracker logs in Azure Log Analytics
 
 ## Unit-2 - Automate deployments using GitHub Actions
