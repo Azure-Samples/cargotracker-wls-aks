@@ -15,6 +15,7 @@ env:
   aksRepoUserName: oracle
   aksRepoBranchName: 364b7648bbe395cb17683180401d07a3029abe91
   aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
+  appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.40.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
   dbAdminUser: weblogic
@@ -292,6 +293,70 @@ jobs:
           --from-file=${modelFilePath}
           kubectl -n sample-domain1-ns label configmap ${wlsConfigmapName} \
           weblogic.domainUID=sample-domain1
+      - name: Provision Application Insights
+        run: |
+          az extension add --upgrade -n application-insights
+          workspaceId=$(az resource list \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --query "[?type=='Microsoft.OperationalInsights/workspaces'].name|[0]" \
+            -o tsv)
+
+          az monitor app-insights component create \
+            --app ${{ env.appInsightName }} \
+            --location ${{ env.location }} \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --workspace ${workspaceId}
+      - name: Connect to App Insights
+        run: |
+          appInsightConnectionString=$(az monitor app-insights component show \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --query '[0].connectionString' -o tsv)
+
+          curl -m 120 --retry 5 -LO https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar 
+
+          kubectl exec -n sample-domain1-ns -it sample-domain1-admin-server -- /bin/bash -c "mkdir /shared/libs"
+          kubectl cp -n sample-domain1-ns applicationinsights-agent-3.4.10.jar sample-domain1-admin-server:/shared/libs/applicationinsights-agent-3.4.10.jar
+
+          wlsNamespace=sample-domain1-ns
+          wlsDomainId=sample-domain1
+          agentPath="-javaagent:/shared/libs/applicationinsights-agent-3.4.10.jar"
+
+          javaOptions=$(kubectl -n ${wlsNamespace} get domain ${wlsDomainId} -o json | jq '. | .spec.serverPod.env | .[] | select(.name=="JAVA_OPTIONS") | .value' | tr -d "\"")
+          javaOptions="${agentPath} ${javaOptions}"
+
+          javaOptionsIndex=$(kubectl -n ${wlsNamespace} get domain ${wlsDomainId} -o json  | jq '.spec.serverPod.env | map(.name == "JAVA_OPTIONS") | index(true)')
+
+          cat <<EOF >patch-file.json
+          [
+              {
+                  "op": "remove",
+                  "path": "/spec/serverPod/env/${javaOptionsIndex}"
+              },
+              {
+                  "op": "add",
+                  "path": "/spec/serverPod/env/-",
+                  "value": {
+                      "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                      "value": "${appInsightConnectionString}"
+                  }
+              },
+              {
+                  "op": "add",
+                  "path": "/spec/serverPod/env/-",
+                  "value": {
+                      "name": "JAVA_OPTIONS",
+                      "value": "${javaOptions}"
+                  }
+              }
+          ]
+          EOF
+
+          kubectl -n ${wlsNamespace} patch domain ${wlsDomainId} \
+                  --type=json \
+                  --patch-file patch-file.json
+
+      - name: Cause a rolling update on the cluster
+        run: |
           restartVersion=$(kubectl -n sample-domain1-ns get domain sample-domain1 '-o=jsonpath={.spec.restartVersion}')
           # increase restart version
           restartVersion=$((restartVersion + 1))

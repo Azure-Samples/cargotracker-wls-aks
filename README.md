@@ -21,6 +21,7 @@ This quickstart shows you how to deploy an existing Java WebLogic application to
     * [Monitor WebLogic application](#monitor-weblogic-application)
   * [Unit-2 - Automate deployments using GitHub Actions](#unit-2---automate-deployments-using-github-actions)
   * [Appendix 1 - Exercise Cargo Tracker Functionality](#appendix-1---exercise-cargo-tracker-functionality)
+  * [Appendix 2 - Learn more about Cargo Tracker](#appendix-2--learn-more-about-cargo-tracker)
 
 ## Introduction
 
@@ -552,7 +553,7 @@ CARGO_TRACKER_URL="http://${GATEWAY_URL}/cargo-tracker/"
 echo "Cargo Tracker URL: ${CARGO_TRACKER_URL}"
 ```
 
-You can also `curl` the REST API exposed by Cargo Trakcer. 
+You can also `curl` the REST API exposed by Cargo Trakcer. It's strongly recommend you to get familiar with Cargo Tracker with the above exercise.
 
 The `/graph-traversal/shortest-path` REST API allows you to retrive shortest path from origin to destination.
 
@@ -704,6 +705,11 @@ You can change the managed server name to query expected server logs.
 
 #### Start monitoring Cargo Tracker logs in Azure Log Analytics
 
+Open the Log Analytics that the Bicep template created.
+
+In the Log Analyics page, selects `Logs` blade and run any of the sample queries supplied below for Application logs.
+
+
 ## Unit-2 - Automate deployments using GitHub Actions
 
 1. Fork the repository by clicking the 'Fork' button on the top right of the page.
@@ -799,18 +805,14 @@ This job is to provision Azure resources, configure WLS, run WLS on AKS and depl
 * Enable Cargo Tracker with full operations
   + Connect to AKS cluster. Though the application is accessible, but some functionalities are not ready. We have to apply JMS configuration in `src/test/aks/cargo-tracker-jms.yaml` to WLS cluster. This step is to connect to AKS cluster to update WLS configuration.
   + Generate&Apply configmap. Append JMS configuration in `src/test/aks/cargo-tracker-jms.yaml` to WLS configuration, which is stored in configmap `sample-domain1-wdt-config-map` in `sample-domain1-ns` namespace. Then the step causes a rolling update on the WLS pods.
+
+* Provision and connect to Application Insight
+  + Provision Application Insights. Provision Application Insights instance.
+  + Connect to App Insights. Download Application Insights java agent and ship it to persistent volume. Configure java agent and connection string of Application Insights.
+
+* Cause a rolling update on the cluster
+  + Cause a rolling update on the cluster. Increase the version number and cause a rolling update on the cluster.
   + Verify pods are restarted. This step is to wait for WLS cluster ready. You can follow steps in [Exercise the Cargo Tracker app](https://www.ridingthecrest.com/javaland-javaee/wls#exercise-the-cargo-tracker-app) to validate the JMS configuration.
-
-## Cargo Tracker Website
-
-![Cargo Tracker Website](cargo_tracker_website.png)
-
-If you wish to view the Cargo Tracker Deployment, you have the following options:
-
-- Log into the Azure Portal
-- Navigate to the `wlsd-aks-<your-disambiguate-prefix>-<number>` Resource Group
-- Select **Settings**, **Deployments**, **wls-on-aks**, **Outputs**, you will see `clusterExternalUrl`. The application URL is `${clusterExternalUrl}cargo-tracker/`.
-- Open your web browser, navigate to the application URL, you will see the Cargo Tracker landing page.
 
 ## Appendix 1 - Exercise Cargo Tracker Functionality
 
@@ -842,6 +844,6 @@ If you wish to view the Cargo Tracker Deployment, you have the following options
 
 1. If desired, go back to **Mobile Event Logger** and continue performing the next activity.
 
-## Learn more about Cargo Tracker
+## Appendix 2 - Learn more about Cargo Tracker
 
 See [Eclipse Cargo Tracker - Applied Domain-Driven Design Blueprints for Jakarta EE](cargo-tracker.md)
