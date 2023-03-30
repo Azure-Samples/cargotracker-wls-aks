@@ -56,10 +56,10 @@
             "value": true
         },
         "enableAzureMonitoring": {
-            "value": false
+            "value": true
         },
         "enableAzureFileShare": {
-            "value": false
+            "value": true
         },
         "enableDB": {
             "value": true

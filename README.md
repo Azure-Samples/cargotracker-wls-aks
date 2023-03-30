@@ -1,8 +1,8 @@
 # Deploy Cargo Tracker to Oracle WebLogic Server on Azure Kubernetes Service (AKS)
 
-The [official Azure offer for running WLS on AKS](https://aka.ms/wls-aks-portal) enables you to easily run a WebLogic applications on AKS. For a quickstart on this offer, see [https://aka.ms/wls-aks-quickstart](https://aka.ms/wls-aks-quickstart).
+This quickstart shows you how to deploy an existing Java WebLogic application to AKS using WLS on AKS solution templates. When you're finished, you can continue to manage the application via the Azure CLI or Azure Portal.
 
-This quickstart shows you how to deploy an existing Java WebLogic application to AKS. When you're finished, you can continue to manage the application via the Azure CLI or Azure Portal.
+The [official Azure offer for running WLS on AKS](https://aka.ms/wls-aks-portal) enables you to easily run a WebLogic applications on AKS. For a quickstart on this offer, see [https://aka.ms/wls-aks-quickstart](https://aka.ms/wls-aks-quickstart).
 
 * [Deploy Cargo Tracker to Oracle WebLogic Server on Azure Kubernetes Service (AKS)]()
   * [Introduction](#introduction)
@@ -19,16 +19,21 @@ This quickstart shows you how to deploy an existing Java WebLogic application to
     * [Invoke WLS on AKS Bicep template to deploy the application](#invoke-wls-on-aks-bicep-template-to-deploy-the-application)
     * [Configure JMS](#configure-jms)
     * [Monitor WebLogic application](#monitor-weblogic-application)
+      * [Create Application Insights](#create-application-insights)
+      * [Use Cargo Tracker and make a few HTTP calls](#use-cargo-tracker-and-make-a-few-http-calls)
+      * [Start monitoring Cargo Tracker in Application Insights](#start-monitoring-cargo-tracker-in-application-insights)
+      * [Start monitoring WebLogic logs in Azure Log Analytics](#start-monitoring-weblogic-logs-in-azure-log-analytics)
+      * [Start monitoring Cargo Tracker logs in Azure Log Analytics](#start-monitoring-cargo-tracker-logs-in-azure-log-analytics)
   * [Unit-2 - Automate deployments using GitHub Actions](#unit-2---automate-deployments-using-github-actions)
   * [Appendix 1 - Exercise Cargo Tracker Functionality](#appendix-1---exercise-cargo-tracker-functionality)
-  * [Appendix 2 - Learn more about Cargo Tracker](#appendix-2--learn-more-about-cargo-tracker)
+  * [Appendix 2 - Learn more about Cargo Tracker](#appendix-2---learn-more-about-cargo-tracker)
 
 ## Introduction
 
 In this quickstart, you will:
 * Build Cargo Tracker.
 * Deploying Cargo Tracker
-  * Create ProgresSQL Database
+  * Create PostgreSQL Database
   * Provisioning Azure Infra Services with Azure BICEP
     * Create an Azure Container Registry
     * Build Cargo Tracker, Oracle WebLogic Server and domain configuration models into an image
@@ -43,16 +48,17 @@ In this quickstart, you will:
 
 ## Prerequisites
 
-- Local shell with Azure CLI 2.45.0 or higher installed or [Azure Cloud Shell](https://ms.portal.azure.com/#cloudshell/)
-- Azure Subscription, on which you are able to create resources and assign permissions
+- Local shell with Azure CLI 2.46.0 and above or [Azure Cloud Shell](https://ms.portal.azure.com/#cloudshell/).
+- Azure Subscription, on which you are able to create resources and assign permissions.
   - View your subscription using ```az account show``` 
   - If you don't have an account, you can [create one for free](https://azure.microsoft.com/free). 
+  - Your subscription is accessed using an Azure Service Principal with at least **Contributor** and **User Access Administrator** permissions.
 - An Oracle account. To create an Oracle account and accept the license agreement for WebLogic Server images, follow the steps in [Oracle Container Registry](https://aka.ms/wls-aks-ocr). Make note of your Oracle Account password and email.
-- We strongly recommend you to use Azure Cloud Shell. For local shell, make sure you have the following tools intalled.
-  - A Java JDK, Version 11. Azure recommends [Microsoft Build of OpenJDK](https://learn.microsoft.com/en-us/java/openjdk/download). Ensure that your `JAVA_HOME` environment
+- We strongly recommend you use Azure Cloud Shell. For local shell, make sure you have installed the following tools.
+  - A Java JDK, Version 11. Azure recommends [Microsoft Build of OpenJDK](https://learn.microsoft.com/en-us/java/openjdk/download). Ensure that your `JAVA_HOME` environment.
   - [Git](https://git-scm.com/downloads). use `git --version` to test whether git works. This tutorial was tested with version 2.25.1.
   - GitHub CLI (optional, but strongly recommended). To install the GitHub CLI on your dev environment, see [Installation](https://cli.github.com/manual/installation).
-  - [kubectl](https://kubernetes-io-vnext-staging.netlify.com/docs/tasks/tools/install-kubectl/); use `kubectl version` to test if kubectl works. This document was tested with version v1.21.1.
+  - [kubectl](https://kubernetes-io-vnext-staging.netlify.com/docs/tasks/tools/install-kubectl/); use `kubectl version` to test if `kubectl` works. This document was tested with version v1.21.1.
   - [Maven](https://maven.apache.org/download.cgi). use `mvn -version` to test whether `mvn` works. This tutorial was tested with version 3.6.3.
 
 ## Unit-1 - Deploy and monitor Cargo Tracker
@@ -84,7 +90,7 @@ Create a bash script with environment variables by making a copy of the supplied
 cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotracker/.scripts/setup-env-variables.sh
 ```
 
-Open .scripts/setup-env-variables.sh and enter the following information. Make sure your Oracle SSO user name and password are correct.
+Open `${DIR}/cargotracker/.scripts/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
 export WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91" # oracle/weblogic-azure reference
@@ -369,6 +375,8 @@ az deployment group create \
 
 It takes more than 1 hour to finish the deployment. The WebLogic cluster is running in namespace `sample-domain1-ns`.
 
+If you are using Azure Cloud Shell, the terminal may have been disconnected, run `source <path-to>/cargotracker/.scripts/setup-env-variables.sh` to set the variables.
+
 ### Configure JMS
 
 Once the deployment completes, you are able to access Cargo Tracker using the output URL. To have Cargo Tracker fully operational, you need to configure JMS.
@@ -421,7 +429,7 @@ Once the deployment completes, you are able to access Cargo Tracker using the ou
     kubectl get pod -n sample-domain1-ns -w
     ```
 
-    You should find one admin server pod and two managed server pods are restarted. Their status are running in the end.
+    You should find one admin server pod and two managed server pods are restarted. Their status is running in the end.
 
 ### Monitor WebLogic application
 
@@ -535,11 +543,11 @@ To integrate with Application Insights, you need to have an Application Insights
 
     You should find one admin server pod and two managed server pods are restarted. Their status are running in the end.
 
-#### Use Cargo Trakcer and make a few HTTP calls
+#### Use Cargo Tracker and make a few HTTP calls
 
 You can open Cargo Tracker in your web browser and follow [Appendix 1 - Exercise Cargo Tracker Functionality](#appendix-1---exercise-cargo-tracker-functionality) to make some calls.
 
-Use the following commands to obtain URL of Cargo Trakcer:
+Use the following commands to obtain URL of Cargo Tracker:
 
 ```bash
 GATEWAY_PUBLICIP_ID=$(az network application-gateway list \
@@ -553,13 +561,13 @@ CARGO_TRACKER_URL="http://${GATEWAY_URL}/cargo-tracker/"
 echo "Cargo Tracker URL: ${CARGO_TRACKER_URL}"
 ```
 
-You can also `curl` the REST API exposed by Cargo Trakcer. It's strongly recommend you to get familiar with Cargo Tracker with the above exercise.
+You can also `curl` the REST API exposed by Cargo Tracker. It's strongly recommended you get familiar with Cargo Tracker with above exercise.
 
-The `/graph-traversal/shortest-path` REST API allows you to retrive shortest path from origin to destination.
+The `/graph-traversal/shortest-path` REST API allows you to retrieve shortest path from origin to destination.
 
-The API requires three parameters:
+The API requires the following parameters:
 
-| Paramater Name | Value |
+| Parameter Name | Value |
 | ------------------| ----------------- |
 | `origin` | The UN location code value of origin and destination must be five characters long, the first two must be alphabetic and the last three must be alphanumeric (excluding 0 and 1). |
 | `destination` | The UN location code value of origin and destination must be five characters long, the first two must be alphabetic and the last three must be alphanumeric (excluding 0 and 1). |
@@ -573,9 +581,9 @@ curl -X GET -H "Accept: application/json" "${CARGO_TRACKER_URL}rest/graph-traver
 
 The `/handling/reports` REST API allows you to sends an asynchronous message with the information to the handling event registration system for proper registration.
 
-The API requires three parameters:
+The API requires the following parameters:
 
-| Paramater Name | Value |
+| Parameter Name | Value |
 | ------------------| ----------------- |
 | `completionTime` | Must be ClockHourOfAmPm. Format: `m/d/yyyy HH:MM tt`, e.g `3/29/2023 9:30 AM` |
 | `trackingId` | Tracking ID must be at least four characters. |
@@ -600,13 +608,14 @@ EOF
 curl -X POST -d "@data.json" -H "Content-Type: application/json" ${CARGO_TRACKER_URL}rest/handling/reports
 ```
 
-You can use Application Insights to detect failures. Run the following `curl` command to cause a failed call. The REST API fails at missing `trackingId`.
+You can use Application Insights to detect failures. Run the following `curl` command to cause a failed call. The REST API fails at incorrect datetime format.
 
 ```bash
-DATE=$(date +'%m/%d/%Y %I:%M %p')
+DATE=$(date +'%m/%d/%Y %H:%M:%S')
 cat <<EOF >data.json
 {
   "completionTime": "${DATE}",
+  "trackingId": "ABC123",
   "eventType": "UNLOAD",
   "unLocode": "USNYC",
   "voyageNumber": "0200T"
@@ -642,7 +651,7 @@ Navigate to the `Failures/Exceptions` blade - you can see a collection of except
 
 ![Cargo Tracker Failures in Application Insights](media/app-insights-failures.png)
 
-Click on an exception to see the end-to-end transaction and stacktrace in context:
+Click on an exception to see the end-to-end transaction and stack trace in context:
 
 ![Cargo Tracker stacktrace in Application Insights](media/app-insights-failure-details.png)
 
@@ -654,7 +663,7 @@ Navigate to the Live Metrics blade - you can see live metrics on screen with low
 
 Open the Log Analytics that the Bicep template created.
 
-In the Log Analyics page, selects `Logs` blade and run any of the sample queries supplied below for WebLogic logs.
+In the Log Analytics page, selects `Logs` blade and run any of the sample queries supplied below for WebLogic logs.
 
 First, get the pod name of each server.
 
@@ -707,8 +716,32 @@ You can change the managed server name to query expected server logs.
 
 Open the Log Analytics that the Bicep template created.
 
-In the Log Analyics page, selects `Logs` blade and run any of the sample queries supplied below for Application logs.
+In the Log Analytics page, selects `Logs` blade and run any of the sample queries supplied below for Application logs.
 
+Type and run the following Kusto query to obtain failed dependencies:
+
+```sql
+AppDependencies 
+| where Success == false
+| project Target, DependencyType, Name, Data, OperationId, AppRoleInstance
+```
+
+Type and run the following Kusto query to obtain EJB exceptions:
+
+```sql
+AppExceptions 
+| where ExceptionType == "javax.ejb.EJBException"
+| project TimeGenerated, ProblemId, Method, OuterMessage, AppRoleInstance
+| sort by TimeGenerated
+| limit 100
+```
+
+Type and run the following Kusto query to obtain specified failed request:
+
+```sql
+AppRequests 
+| where OperationName == "POST /cargo-tracker/rest/handling/reports" and ResultCode == "500"
+```
 
 ## Unit-2 - Automate deployments using GitHub Actions
 
@@ -765,11 +798,11 @@ This job is to deploy PostgreSQL server and configure firewall setting.
 
 ### Job: deploy-storage-account
 
-This job is to build Cargo Trakcer and deploy an Azure Storage Account with a container to store the application.
+This job is to build Cargo Tracker and deploy an Azure Storage Account with a container to store the application.
 
-* Build Cargo Trakcer
-  + Checkout cargotracker. Checkout Cargo Trakcer from this repository.
-  + Maven build web app. Build Cargo Trakcer with Maven. The war file locates in `cargotracker/target/cargo-tracker.war`
+* Build Cargo Tracker
+  + Checkout cargotracker. Checkout Cargo Tracker from this repository.
+  + Maven build web app. Build Cargo Tracker with Maven. The war file locates in `cargotracker/target/cargo-tracker.war`
 
 * Provision Storage Account and container
   + azure-login. Login Azure.
@@ -777,7 +810,7 @@ This job is to build Cargo Trakcer and deploy an Azure Storage Account with a co
   + Create Storage Account. Create a storage account with name `${{ env.storageAccountName }}`.
   + Create Storage Container. Create a container with name `${{ env.storageContainerName }}`.
 
-* Upload Cargo Trakcer to the container
+* Upload Cargo Tracker to the container
   + Upload built web app war file. Upload the application war file to the container using AZ CLI commands. The URL of the war file will pass to the ARM template as a parameter when deploying WLS on AKS templates.
 
 ### Job: deploy-wls-on-aks
@@ -813,6 +846,11 @@ This job is to provision Azure resources, configure WLS, run WLS on AKS and depl
 * Cause a rolling update on the cluster
   + Cause a rolling update on the cluster. Increase the version number and cause a rolling update on the cluster.
   + Verify pods are restarted. This step is to wait for WLS cluster ready. You can follow steps in [Exercise the Cargo Tracker app](https://www.ridingthecrest.com/javaland-javaee/wls#exercise-the-cargo-tracker-app) to validate the JMS configuration.
+
+* Make REST API calls
+  + A HTTP GET request.
+  + A HTTP POST request.
+  + An EJB failure request.
 
 ## Appendix 1 - Exercise Cargo Tracker Functionality
 

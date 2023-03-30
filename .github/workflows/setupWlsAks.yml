@@ -272,27 +272,15 @@ jobs:
       # Apply JMS configuration in src/test/aks/cargo-tracker-jms.yaml to configmap. This is necessary to have Cargo Tracker fully operational.
       - name: Generate&Apply configmap
         run: |
-          wlsConfigmapName=sample-domain1-wdt-config-map
-          wlsConfigmapJson=cargo-tracker-db.json
-          modelFilePath=models
-          mkdir ${modelFilePath}
-          echo "create configmap"
-          echo "export exisiting configmap"
-          kubectl -n sample-domain1-ns get configmap ${wlsConfigmapName} -o json >${wlsConfigmapJson}
-          echo "query model keys"
-          keyList=$(cat ${wlsConfigmapJson} | jq '.data | keys[]' | tr -d "\"")
-          for item in $keyList; do
-              data=$(cat ${wlsConfigmapJson} | jq ".data[\"${item}\"]")
-              data=$(echo "${data:1:${#data}-2}")
-              echo -e "${data}" >${modelFilePath}/${item}
-          done
-          # remove current configmap and create a new one
-          kubectl -n sample-domain1-ns delete configmap ${wlsConfigmapName}
-          cp cargotracker/src/test/aks/cargo-tracker-jms.yaml ${modelFilePath}/cargo-tracker-jms.yaml
-          kubectl -n sample-domain1-ns create configmap ${wlsConfigmapName} \
-          --from-file=${modelFilePath}
-          kubectl -n sample-domain1-ns label configmap ${wlsConfigmapName} \
-          weblogic.domainUID=sample-domain1
+          wlsConfigmapName="sample-domain1-wdt-config-map"
+          # Get the content of JMS configuration from src/test/aks/cargo-tracker-jms.yaml.
+          configmapJMSData=$(kubectl create configmap ${wlsConfigmapName} -n sample-domain1-ns \
+            --from-file=cargotracker/src/test/aks/cargo-tracker-jms.yaml \
+            --dry-run=client \
+            -o jsonpath='{.data}')
+          # Patch JMS configuration to configmap sample-domain1-wdt-config-map.
+          kubectl patch configmap ${wlsConfigmapName} -n sample-domain1-ns \
+            --type merge -p '{"data":'"$configmapJMSData"'}'
       - name: Provision Application Insights
         run: |
           az extension add --upgrade -n application-insights
@@ -352,8 +340,8 @@ jobs:
           EOF
 
           kubectl -n ${wlsNamespace} patch domain ${wlsDomainId} \
-                  --type=json \
-                  --patch-file patch-file.json
+            --type=json \
+            --patch-file patch-file.json
 
       - name: Cause a rolling update on the cluster
         run: |
@@ -364,10 +352,9 @@ jobs:
           timestampBeforePatchingDomain=$(date +%s)
           # get the replica number
           replicas=$(kubectl -n sample-domain1-ns get domain sample-domain1 -o json | jq '. | .spec.clusters[] | .replicas')
-          echo "append configmap and update restart version"
           kubectl -n sample-domain1-ns patch domain sample-domain1 \
-              --type=json \
-              '-p=[{"op": "replace", "path": "/spec/restartVersion", "value": "'${restartVersion}'" }, {"op": "add", "path": "/spec/configuration/model/configMap", "value": "'${wlsConfigmapName}'" }]'
+            --type=json \
+            '-p=[{"op": "replace", "path": "/spec/restartVersion", "value": "'${restartVersion}'"}]'
           echo "timestampBeforePatchingDomain=${timestampBeforePatchingDomain}" >> $GITHUB_ENV
           echo "replicas=${replicas}" >> $GITHUB_ENV
       # Make sure all the pods are running.
@@ -382,8 +369,8 @@ jobs:
           wlsDomainNS=${wlsDomainUID}-ns
           updatedPodNum=0
           attempt=0
-          echo $timestampBeforePatchingDomain $appReplicas $wlsDomainUID $checkPodStatusMaxAttemps $checkPodStatusInterval
-          while [[ ${updatedPodNum} -le ${appReplicas} ]] && [[ $attempt -le ${checkPodStatusMaxAttemps} ]]; do
+          echo $timestampBeforePatchingDomain $replicas $wlsDomainUID $checkPodStatusMaxAttemps $checkPodStatusInterval
+          while [[ ${updatedPodNum} -le ${replicas} ]] && [[ $attempt -le ${checkPodStatusMaxAttemps} ]]; do
               echo "attempts ${attempt}"
               ret=$(kubectl get pods -n ${wlsDomainNS} -l weblogic.domainUID=${wlsDomainUID} -o json | jq '.items[] | .metadata.creationTimestamp' | tr -d "\"")
               counter=0
@@ -403,3 +390,44 @@ jobs:
               echo "Failed to restart all weblogic server pods. "
               exit 1
           fi
+      - name: Make REST API calls
+        run: | 
+          gatewayPublicIPId=$(az network application-gateway list \
+            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --query '[0].frontendIPConfigurations[0].publicIPAddress.id' -o tsv)
+
+          gatewayUrl=$(az network public-ip show --ids ${gatewayPublicIPId} --query 'dnsSettings.fqdn' -o tsv)
+
+          cargoUrl="http://${gatewayUrl}/cargo-tracker/"
+
+          # get request
+          curl -X GET -H "Accept: application/json" "${cargoUrl}rest/graph-traversal/shortest-path?origin=CNHKG&destination=USNYC"
+
+          # post request
+          currentDateTime=$(date +'%m/%d/%Y %I:%M %p')
+          cat <<EOF >data.json
+          {
+            "completionTime": "${currentDateTime}",
+            "trackingId": "ABC123",
+            "eventType": "UNLOAD",
+            "unLocode": "USNYC",
+            "voyageNumber": "0200T"
+          }
+          EOF
+
+          curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
+
+          # EJB failure
+          currentDateTime=$(date +'%m/%d/%Y %H:%M:%S')
+          cat <<EOF >data.json
+          {
+            "completionTime": "${currentDateTime}",
+            "trackingId": "ABC123",
+            "eventType": "UNLOAD",
+            "unLocode": "USNYC",
+            "voyageNumber": "0200T"
+          }
+          EOF
+
+          curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
+
