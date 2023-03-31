@@ -232,11 +232,6 @@ jobs:
                   s/#dbUser#/${dbAdminUser}@${dbName}/g; \
                   s/#dsConnectionURL#/jdbc:postgresql:\/\/${dbName}.postgres.database.azure.com:5432\/postgres/g" \
                   cargotracker/src/test/aks/parameters.json
-      - name: Archive parameters.json
-        uses: actions/upload-artifact@v1
-        with:
-          name: archivefiles
-          path: cargotracker/src/test/aks/parameters.json
       # Validate the parameters file in the context of the bicep template to be invoked. This will catch some errors before taking the time to start the full deployment.
       - name: Validate Deploy of WebLogic Server Cluster Domain offer
         id: validate-wls-cluster-deployment
