@@ -55,21 +55,26 @@ msg() {
 
 setup_colors
 
-read -r -p "Enter a disambiguation prefix (try initials with a sequence number, such as ejb01): " DISAMBIG_PREFIX
+read -r -p "Enter a disambiguation prefix (try initials with a sequence number, default is ejb01): " DISAMBIG_PREFIX
 
-if [ "$DISAMBIG_PREFIX" == '' ] ; then
-  msg "${RED}You must enter a disambiguation prefix."
-  exit 1;
+if [ -z "$DISAMBIG_PREFIX" ]; then
+  DISAMBIG_PREFIX="ejb01"
+  echo "Using disambiguation prefix: $DISAMBIG_PREFIX"
 fi
 
+
 # get ORC_SSOUSER if not set at the beginning of this file
-if [ "$ORC_SSOUSER" == '' ] ; then
-    read -r -p "Enter Oracle single sign-on userid: " ORC_SSOUSER
+if [[ -z "$ORC_SSOUSER" ]]; then
+    while [[ -z "$ORC_SSOUSER" ]]; do
+        read -r -p "Enter Oracle single sign-on userid: " ORC_SSOUSER
+    done
 fi
 
 # get ORC_SSOPSW if not set at the beginning of this file
-if [ "$ORC_SSOPSW" == '' ] ; then
-    read -s -r -p "Enter password for preceding Oracle single sign-on userid: " ORC_SSOPSW
+if [[ -z "$ORC_SSOPSW" ]]; then
+    while [[ -z "$ORC_SSOPSW" ]]; do
+        read -s -r -p "Enter password for preceding Oracle single sign-on userid: " ORC_SSOPSW
+    done
 fi
 
 echo -e "\n"
@@ -146,7 +151,7 @@ SP_OBJECT_ID_ARRAY=$(az ad sp list --display-name ${SERVICE_PRINCIPAL_NAME} --qu
 SP_OBJECT_ID_ARRAY=$(echo ${SP_OBJECT_ID_ARRAY} | xargs) || true
 SP_OBJECT_ID_ARRAY=${SP_OBJECT_ID_ARRAY//[/}
 SP_OBJECT_ID=${SP_OBJECT_ID_ARRAY//]/}
-az role assignment create --assignee ${SP_OBJECT_ID} --role "User Access Administrator" --subscription "${SUBSCRIPTION_ID}"
+az role assignment create --assignee ${SP_OBJECT_ID} --role "User Access Administrator" --subscription "${SUBSCRIPTION_ID}"  --scope "/subscriptions/${SUBSCRIPTION_ID}"
 
 msg "${GREEN}(4/4) Create secrets in GitHub"
 if $USE_GITHUB_CLI; then
