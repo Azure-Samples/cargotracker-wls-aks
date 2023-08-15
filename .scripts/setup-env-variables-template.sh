@@ -1,4 +1,4 @@
-export WLS_AKS_REPO_REF="364b7648bbe395cb17683180401d07a3029abe91" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="95bd2e7258ac97ac1b82c59eed82a0492653794f" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
