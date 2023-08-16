@@ -13,7 +13,7 @@ on:
     
 env:
   aksRepoUserName: oracle
-  aksRepoBranchName: 364b7648bbe395cb17683180401d07a3029abe91
+  aksRepoBranchName: 042a47ae4dad755dfafdb30cfbdb753a24194984
   aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.40.0
