@@ -16,7 +16,7 @@ env:
   aksRepoBranchName: 042a47ae4dad755dfafdb30cfbdb753a24194984
   aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
   appInsightName: wlsakscargotracker${{ github.run_id }}
-  azCliVersion: 2.40.0
+  azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
   dbAdminUser: weblogic
   dbPassword: ${{ secrets.DB_PASSWORD }}
@@ -160,7 +160,7 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            az storage container create -n ${{ env.storageContainerName }} --public-access container --account-name ${{ env.storageAccountName }}
+            az storage container create -n ${{ env.storageContainerName }} --account-name ${{ env.storageAccountName }}
       - name: Upload built web app war file
         uses: azure/CLI@v1
         with:
@@ -202,7 +202,19 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            cargoTrackerBlobUrl=$(az storage blob url --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --name cargo-tracker.war -o tsv)
+            sasTokenValidTime=3600
+            expiryData=$(( `date +%s`+${sasTokenValidTime}))
+            sasTokenEnd=`date -d@"$expiryData" -u '+%Y-%m-%dT%H:%MZ'`
+            sasToken=$(az storage account generate-sas \
+                --permissions r \
+                --account-name ${{ env.storageAccountName }} \
+                --services b \
+                --resource-types sco \
+                --expiry $sasTokenEnd -o tsv)
+            cargoTrackerBlobUrl=$(az storage blob url --container-name ${{ env.storageContainerName }} \
+                --name cargo-tracker.war \
+                --account-name ${{ env.storageAccountName }} \
+                --sas-token ${sasToken} -o tsv)
             polishedUrl=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
             echo "cargoTrackerBlobUrl=${polishedUrl}" >> $GITHUB_ENV
       - name: Create Resource Group
