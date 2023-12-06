@@ -24,7 +24,7 @@ env:
   location: eastus
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
-  refJavaee: b728442f1921282f5f3902fe5bdf7f4d2c7872ca
+  refJavaee: 9850b0ba70d705479b66967a1311ecae145c6b30
   resourceGroupForWlsAks: wlsd-aks-${{ github.event.inputs.disambiguationSuffix }}-${{ github.run_number }}
   resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
   resourceGroupForStorageAccount: wlsd-sa-${{ github.run_id }}-${{ github.run_number }}
