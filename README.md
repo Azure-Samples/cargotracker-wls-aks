@@ -93,7 +93,7 @@ cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotrac
 Open `${DIR}/cargotracker/.scripts/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
-export WLS_AKS_REPO_REF="042a47ae4dad755dfafdb30cfbdb753a24194984" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="f5d479c3da5343f75ac34b14113a2985a2c7c2d2" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
@@ -114,7 +114,7 @@ source ${DIR}/cargotracker/.scripts/setup-env-variables.sh
 
 ### Clone WLS on AKS Bicep templates
 
-Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 364b764](https://github.com/oracle/weblogic-azure/commit/042a47ae4dad755dfafdb30cfbdb753a24194984). 
+Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 364b764](https://github.com/oracle/weblogic-azure/commit/f5d479c3da5343f75ac34b14113a2985a2c7c2d2). 
 
 ```bash
 git clone https://github.com/oracle/weblogic-azure.git ${DIR}/weblogic-azure
