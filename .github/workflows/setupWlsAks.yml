@@ -13,7 +13,7 @@ on:
     
 env:
   aksRepoUserName: oracle
-  aksRepoBranchName: f5d479c3da5343f75ac34b14113a2985a2c7c2d2
+  aksRepoBranchName: 278a527cb7d1eb44a5a65ccc02b6837fe42967db
   aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.54.0
@@ -24,7 +24,7 @@ env:
   location: eastus
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
-  refJavaee: 9850b0ba70d705479b66967a1311ecae145c6b30
+  refJavaee: d70ad03d3de9de45174b14d4077dbb2d148d5bbb
   resourceGroupForWlsAks: wlsd-aks-${{ github.event.inputs.disambiguationSuffix }}-${{ github.run_number }}
   resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
   resourceGroupForStorageAccount: wlsd-sa-${{ github.run_id }}-${{ github.run_number }}

@@ -93,7 +93,7 @@ cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotrac
 Open `${DIR}/cargotracker/.scripts/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
-export WLS_AKS_REPO_REF="f5d479c3da5343f75ac34b14113a2985a2c7c2d2" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="278a527cb7d1eb44a5a65ccc02b6837fe42967db" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
@@ -114,7 +114,7 @@ source ${DIR}/cargotracker/.scripts/setup-env-variables.sh
 
 ### Clone WLS on AKS Bicep templates
 
-Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 364b764](https://github.com/oracle/weblogic-azure/commit/f5d479c3da5343f75ac34b14113a2985a2c7c2d2). 
+Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 278a527](https://github.com/oracle/weblogic-azure/commit/278a527cb7d1eb44a5a65ccc02b6837fe42967db). 
 
 ```bash
 git clone https://github.com/oracle/weblogic-azure.git ${DIR}/weblogic-azure
@@ -160,13 +160,12 @@ az storage account create \
     --kind StorageV2
 ```
 
-Create a container for storing blobs with the `az storage container create` command, with public access enabled.
+Create a container for storing blobs with the `az storage container create` command.
 
 ```bash
 az storage container create \
     --account-name ${STORAGE_ACCOUNT_NAME} \
-    --name mycontainer \
-    --public-access container
+    --name mycontainer
 ```
 
 Next, upload Cargo Tracker to a blob using the `az storage blob upload` command.
@@ -182,10 +181,18 @@ az storage blob upload \
 Obtain the blob URL, which will be used as a deployment parameter.
 
 ```bash
+SAS_END=`date -u -d "50 minutes" '+%Y-%m-%dT%H:%MZ'`
+SAS_TOKEN=$(az storage account generate-sas \
+    --permissions r \
+    --account-name ${STORAGE_ACCOUNT_NAME} \
+    --services b \
+    --resource-types sco \
+    --expiry $SAS_END  -o tsv)
 APP_URL=$(az storage blob url \
-  --account-name ${STORAGE_ACCOUNT_NAME} \
-  --container-name mycontainer \
-  --name cargo-tracker.war -o tsv)
+    --container-name mycontainer \
+    --name cargo-tracker.war \
+    --account-name ${STORAGE_ACCOUNT_NAME} \
+    --sas-token ${SAS_TOKEN} -o tsv)
 ```
 
 ### Create an Azure Database for PostgreSQL instance
@@ -248,103 +255,20 @@ Several parameters are required to invoke the Bicep templates. Parameters and th
 Create parameter file.
 
 ```bash
-cat <<EOF >parameters.json
-{
-  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
-  "contentVersion": "1.0.0.0",
-  "parameters": {
-    "_artifactsLocation": {
-      "value": "https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/"
-    },
-    "aksAgentPoolNodeCount": {
-      "value": 3
-    },
-    "vmSize": {
-      "value": "Standard_DS2_v2"
-    },
-    "appGatewayCertificateOption": {
-      "value": "generateCert"
-    },
-    "appgwForAdminServer": {
-      "value": true
-    },
-    "appgwForRemoteConsole": {
-      "value": false
-    },
-    "appPackageUrls": {
-      "value": [
-        "${APP_URL}"
-      ]
-    },
-    "appReplicas": {
-      "value": 2
-    },
-    "createACR": {
-      "value": true
-    },
-    "createAKSCluster": {
-      "value": true
-    },
-    "databaseType": {
-      "value": "postgresql"
-    },
-    "dbGlobalTranPro": {
-      "value": "EmulateTwoPhaseCommit"
-    },
-    "dbPassword": {
-      "value": "${DB_PASSWORD}"
-    },
-    "dbUser": {
-      "value": "weblogic@${DB_SERVER_NAME}"
-    },
-    "dsConnectionURL": {
-      "value": "${DB_CONNECTION_STRING}"
-    },
-    "enableAppGWIngress": {
-      "value": true
-    },
-    "enableAzureMonitoring": {
-      "value": true
-    },
-    "enableAzureFileShare": {
-      "value": true
-    },
-    "enableDB": {
-      "value": true
-    },
-    "enableDNSConfiguration": {
-      "value": false
-    },
-    "enableCookieBasedAffinity": {
-      "value": true
-    },
-    "jdbcDataSourceName": {
-      "value": "jdbc/CargoTrackerDB"
-    },
-    "location": {
-      "value": "eastus"
-    },
-    "ocrSSOPSW": {
-      "value": "${MY_ORACLE_SSO_PASSWORD}"
-    },
-    "ocrSSOUser": {
-      "value": "${MY_ORACLE_SSO_USER}"
-    },
-    "wdtRuntimePassword": {
-      "value": "${MY_WEBLOGIC_ADMIN_PASSWORD}"
-    },
-    "wlsImageTag": {
-      "value": "14.1.1.0-11"
-    },
-    "wlsPassword": {
-      "value": "${MY_WEBLOGIC_ADMIN_PASSWORD}"
-    },
-    "wlsUserName": {
-      "value": "${MY_WEBLOGIC_ADMIN_USER_NAME}"
-    }
-  }
-}
-EOF
+bash ${DIR}/cargotracker/src/test/aks/genParameters.sh \
+  "oracle" \
+  ${WLS_AKS_REPO_REF} \
+  ${APP_URL} \
+  ${DB_PASSWORD} \
+  "weblogic@${DB_SERVER_NAME}" \
+  "${DB_CONNECTION_STRING}" \
+  "eastus" \
+  ${MY_ORACLE_SSO_PASSWORD} \
+  ${MY_ORACLE_SSO_USER} \
+  ${MY_WEBLOGIC_ADMIN_PASSWORD} \
+  ${MY_WEBLOGIC_ADMIN_PASSWORD} \
+  ${MY_WEBLOGIC_ADMIN_USER_NAME} \
+  parameters.json
 ```
 
 ### Invoke WLS on AKS Bicep template to deploy the application
