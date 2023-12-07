@@ -13,10 +13,10 @@ on:
     
 env:
   aksRepoUserName: oracle
-  aksRepoBranchName: 042a47ae4dad755dfafdb30cfbdb753a24194984
+  aksRepoBranchName: 278a527cb7d1eb44a5a65ccc02b6837fe42967db
   aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
   appInsightName: wlsakscargotracker${{ github.run_id }}
-  azCliVersion: 2.40.0
+  azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
   dbAdminUser: weblogic
   dbPassword: ${{ secrets.DB_PASSWORD }}
@@ -24,7 +24,7 @@ env:
   location: eastus
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
-  refJavaee: b728442f1921282f5f3902fe5bdf7f4d2c7872ca
+  refJavaee: d70ad03d3de9de45174b14d4077dbb2d148d5bbb
   resourceGroupForWlsAks: wlsd-aks-${{ github.event.inputs.disambiguationSuffix }}-${{ github.run_number }}
   resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
   resourceGroupForStorageAccount: wlsd-sa-${{ github.run_id }}-${{ github.run_number }}
@@ -160,7 +160,7 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            az storage container create -n ${{ env.storageContainerName }} --public-access container --account-name ${{ env.storageAccountName }}
+            az storage container create -n ${{ env.storageContainerName }} --account-name ${{ env.storageAccountName }}
       - name: Upload built web app war file
         uses: azure/CLI@v1
         with:
@@ -202,9 +202,20 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            cargoTrackerBlobUrl=$(az storage blob url --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --name cargo-tracker.war -o tsv)
-            polishedUrl=$(echo ${cargoTrackerBlobUrl} | sed 's,/,\\\/,g')
-            echo "cargoTrackerBlobUrl=${polishedUrl}" >> $GITHUB_ENV
+            sasTokenValidTime=3600
+            expiryData=$(( `date +%s`+${sasTokenValidTime}))
+            sasTokenEnd=`date -d@"$expiryData" -u '+%Y-%m-%dT%H:%MZ'`
+            sasToken=$(az storage account generate-sas \
+                --permissions r \
+                --account-name ${{ env.storageAccountName }} \
+                --services b \
+                --resource-types sco \
+                --expiry $sasTokenEnd -o tsv)
+            cargoTrackerBlobUrl=$(az storage blob url --container-name ${{ env.storageContainerName }} \
+                --name cargo-tracker.war \
+                --account-name ${{ env.storageAccountName }} \
+                --sas-token ${sasToken} -o tsv)
+            echo "cargoTrackerBlobUrl=${cargoTrackerBlobUrl}" >> $GITHUB_ENV
       - name: Create Resource Group
         uses: azure/CLI@v1
         with:
@@ -219,19 +230,22 @@ jobs:
       - name: Prepare parameter file
         run: |
           echo "replace placeholders using real parameter"
-          sed -i "s/#location#/${location}/g; \
-                  s/#wlsUserName#/${wlsUserName}/g; \
-                  s/#wlsPassword#/${wlsPassword}/g; \
-                  s/#ocrSSOPSW#/${ocrSSOPSW}/g; \
-                  s/#ocrSSOUser#/${ocrSSOUser}/g; \
-                  s/#appPackageUrls#/${cargoTrackerBlobUrl}/g; \
-                  s/#wdtRuntimePassword#/${wdtRuntimePassword}/g; \
-                  s/#testbranchName#/${aksRepoBranchName}/g; \
-                  s/#gitUserName#/${aksRepoUserName}/g; \
-                  s/#dbPassword#/${dbPassword}/g; \
-                  s/#dbUser#/${dbAdminUser}@${dbName}/g; \
-                  s/#dsConnectionURL#/jdbc:postgresql:\/\/${dbName}.postgres.database.azure.com:5432\/postgres/g" \
-                  cargotracker/src/test/aks/parameters.json
+          bash cargotracker/src/test/aks/genParameters.sh  \
+          ${aksRepoUserName} \
+          ${aksRepoBranchName} \
+          ${cargoTrackerBlobUrl} \
+          ${dbPassword} \
+          ${dbAdminUser}@${dbName} \
+          "jdbc:postgresql://${dbName}.postgres.database.azure.com:5432/postgres" \
+          ${location} \
+          ${ocrSSOPSW} \
+          ${ocrSSOUser} \
+          ${wdtRuntimePassword} \
+          ${wlsPassword} \
+          ${wlsUserName} \
+          cargotracker/src/test/aks/parameters.json
+
+          ls cargotracker/src/test/aks
       # Validate the parameters file in the context of the bicep template to be invoked. This will catch some errors before taking the time to start the full deployment.
       - name: Validate Deploy of WebLogic Server Cluster Domain offer
         id: validate-wls-cluster-deployment
