@@ -5,6 +5,7 @@ on:
     inputs:
       disambiguationSuffix:
         description: "Included in names to disambiguate. Get from another pipeline execution"
+        default: "wls"
         required: true
       deleteResource:
         description: "True to delete all the Azure resources after the deployments. False to keep Azure resources."
