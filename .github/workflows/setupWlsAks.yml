@@ -11,6 +11,8 @@ on:
         default: true
         required: true
   repository_dispatch:
+  schedule:
+    - cron: '0 0 20 * *' # run the workflow at the end of 20th monthly.
 
 # All of the secrets in the env section are required. Run setup.sh to
 # populate the git repository running this workflow with the necessary secrets.
