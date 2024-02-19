@@ -6,6 +6,10 @@ on:
       disambiguationSuffix:
         description: "Included in names to disambiguate. Get from another pipeline execution"
         required: true
+      deleteResource:
+        description: "True to delete all the Azure resources after the deployments. False to keep Azure resources."
+        default: true
+        required: true
   repository_dispatch:
 
 # All of the secrets in the env section are required. Run setup.sh to
@@ -442,3 +446,25 @@ jobs:
 
           curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
 
+  cleanup:
+    if:  ${{ github.event.inputs.deleteResource }}
+    needs: [deploy-db,deploy-storage-account, deploy-wls-on-aks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v1
+        id: azure-login
+        with:
+          creds: ${{ env.azureCredentials }}
+      - name: Delete Azure resources.
+        uses: azure/CLI@v1
+        with:
+          azcliversion: ${{ env.azCliVersion }}
+          inlineScript: |
+            echo "delete... " ${{ env.resourceGroupForStorageAccount }}
+            az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForStorageAccount }}
+
+            echo "delete... " ${{ env.resourceGroupForWlsAks }}
+            az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForWlsAks }}
+
+            echo "delete... " ${{ env.resourceGroupForDB }}
+            az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForDB }}
