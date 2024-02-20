@@ -197,6 +197,10 @@ jobs:
     needs: [preflight, deploy-db,deploy-storage-account]
     runs-on: ubuntu-latest
     steps:
+      - name: Set variables
+        run: |
+          echo "resourceGroupForWlsAks=${{ needs.preflight.outputs.resourceGroupForWlsAks }}" >> $GITHUB_ENV
+
       - name: Checkout ${{ env.aksRepoUserName }}/weblogic-azure
         uses: actions/checkout@v2
         with:
@@ -246,8 +250,8 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            echo "create resource group" ${{ preflight.outputs.resourceGroupForWlsAks }}
-            az group create --verbose --name ${{ preflight.outputs.resourceGroupForWlsAks }} --location ${{ env.location }}
+            echo "create resource group" ${resourceGroupForWlsAks}
+            az group create --verbose --name ${resourceGroupForWlsAks} --location ${{ env.location }}
       - name: Checkout cargotracker
         uses: actions/checkout@v2
         with:
@@ -280,7 +284,7 @@ jobs:
           inlineScript: |
             az deployment group validate \
             --debug \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --name wls-on-aks \
             --parameters @cargotracker/src/test/aks/parameters.json \
             --template-file ${artifactName}/mainTemplate.json
@@ -293,7 +297,7 @@ jobs:
           inlineScript: |
             az deployment group create \
             --verbose \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --name wls-on-aks \
             --parameters @cargotracker/src/test/aks/parameters.json \
             --template-file ${artifactName}/mainTemplate.json
@@ -301,8 +305,8 @@ jobs:
       - name: Connect to AKS cluster
         run: |
           echo "connect to cluster"
-          aksClusterName=$(az resource list --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" -o tsv)
-          az aks get-credentials --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} --name $aksClusterName
+          aksClusterName=$(az resource list --resource-group ${resourceGroupForWlsAks} --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" -o tsv)
+          az aks get-credentials --resource-group ${resourceGroupForWlsAks} --name $aksClusterName
       # Apply JMS configuration in src/test/aks/cargo-tracker-jms.yaml to configmap. This is necessary to have Cargo Tracker fully operational.
       - name: Generate&Apply configmap
         run: |
@@ -319,19 +323,19 @@ jobs:
         run: |
           az extension add --upgrade -n application-insights
           workspaceId=$(az resource list \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --query "[?type=='Microsoft.OperationalInsights/workspaces'].name|[0]" \
             -o tsv)
 
           az monitor app-insights component create \
             --app ${{ env.appInsightName }} \
             --location ${{ env.location }} \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --workspace ${workspaceId}
       - name: Connect to App Insights
         run: |
           appInsightConnectionString=$(az monitor app-insights component show \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --query '[0].connectionString' -o tsv)
 
           curl -m 120 --retry 5 -LO https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar 
@@ -427,7 +431,7 @@ jobs:
       - name: Make REST API calls
         run: | 
           gatewayPublicIPId=$(az network application-gateway list \
-            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
+            --resource-group ${resourceGroupForWlsAks} \
             --query '[0].frontendIPConfigurations[0].publicIPAddress.id' -o tsv)
 
           gatewayUrl=$(az network public-ip show --ids ${gatewayPublicIPId} --query 'dnsSettings.fqdn' -o tsv)
@@ -482,8 +486,8 @@ jobs:
             echo "delete... " ${{ env.resourceGroupForStorageAccount }}
             az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForStorageAccount }}
 
-            echo "delete... " ${{ preflight.outputs.resourceGroupForWlsAks }}
-            az group delete --yes --no-wait --verbose --name ${{ preflight.outputs.resourceGroupForWlsAks }}
+            echo "delete... " ${{ needs.preflight.outputs.resourceGroupForWlsAks }}
+            az group delete --yes --no-wait --verbose --name ${{ needs.preflight.outputs.resourceGroupForWlsAks }}
 
             echo "delete... " ${{ env.resourceGroupForDB }}
             az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForDB }}
