@@ -9,7 +9,7 @@ on:
         required: true
       deleteResource:
         description: "True to delete all the Azure resources after the deployments. False to keep Azure resources."
-        default: true
+        default: "true"
         required: true
   repository_dispatch:
   schedule:
@@ -450,7 +450,7 @@ jobs:
           curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
 
   cleanup:
-    if:  ${{ github.event.inputs.deleteResource }}
+    if:  ${{ github.event.inputs.deleteResource == 'true' }}
     needs: [deploy-db,deploy-storage-account, deploy-wls-on-aks]
     runs-on: ubuntu-latest
     steps:
