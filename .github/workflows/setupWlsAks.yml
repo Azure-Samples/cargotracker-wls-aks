@@ -13,7 +13,7 @@ on:
         required: true
   repository_dispatch:
   schedule:
-    - cron: '0 0 20 * *' # run the workflow at the end of 20th monthly.
+    - cron: '0 0 21 * *' # run the workflow at the end of 20th monthly.
 
 # All of the secrets in the env section are required. Run setup.sh to
 # populate the git repository running this workflow with the necessary secrets.
@@ -44,8 +44,25 @@ env:
 jobs:
   # Make it so the bicep file that causes WLS on AKS to be deployed is available to this workflow.
   preflight:
+    outputs:
+      disambiguationSuffix: ${{ steps.setup-env-variables.outputs.disambiguationSuffix }}
+      deleteResource: ${{steps.setup-env-variables.outputs.deleteResource}}
     runs-on: ubuntu-20.04
     steps:
+      - name: Set up ENV variables
+        run: |
+          disambiguationSuffix=${{ github.event.inputs.disambiguationSuffix }}
+          if [ ${{ github.event.inputs.disambiguationSuffix }} == '' ]; then
+            disambiguationSuffix=wls`date +%m%d`
+          fi
+
+          deleteResource=${{ github.event.inputs.deleteResource }}
+          if [ ${{ github.event.inputs.deleteResource }} == '' ]; then
+            deleteResource='true'
+          fi
+
+          echo "##[set-output name=disambiguationSuffix;]${disambiguationSuffix}"
+          echo "##[set-output name=deleteResource;]${deleteResource}"
       - name: Set up JDK 1.8
         uses: actions/setup-java@v1
         with:
