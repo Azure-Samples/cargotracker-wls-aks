@@ -13,7 +13,7 @@ on:
         required: true
   repository_dispatch:
   schedule:
-    - cron: '0 0 21 * *' # run the workflow at the end of 20th monthly.
+    - cron: '0 0 21 * *' # run the workflow at the end of 21th monthly.
 
 # All of the secrets in the env section are required. Run setup.sh to
 # populate the git repository running this workflow with the necessary secrets.
@@ -21,7 +21,6 @@ on:
 env:
   aksRepoUserName: oracle
   aksRepoBranchName: 278a527cb7d1eb44a5a65ccc02b6837fe42967db
-  aksClusterConfigMapName: wlsd-wdt-config-map-${{ github.event.inputs.disambiguationSuffix }}
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
@@ -32,7 +31,6 @@ env:
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
   refJavaee: d70ad03d3de9de45174b14d4077dbb2d148d5bbb
-  resourceGroupForWlsAks: wlsd-aks-${{ github.event.inputs.disambiguationSuffix }}-${{ github.run_number }}
   resourceGroupForDB: wlsd-db-${{ github.run_id }}-${{ github.run_number }}
   resourceGroupForStorageAccount: wlsd-sa-${{ github.run_id }}-${{ github.run_number }}
   storageAccountName: wlsdsa${{ github.run_id }}${{ github.run_number }}
@@ -47,6 +45,7 @@ jobs:
     outputs:
       disambiguationSuffix: ${{ steps.setup-env-variables.outputs.disambiguationSuffix }}
       deleteResource: ${{steps.setup-env-variables.outputs.deleteResource}}
+      resourceGroupForWlsAks: wlsd-aks-${{ steps.setup-env-variables.outputs.disambiguationSuffix }}-${{ github.run_number }}
     runs-on: ubuntu-20.04
     steps:
       - name: Set up ENV variables
@@ -195,7 +194,7 @@ jobs:
             az storage blob upload --account-name ${{ env.storageAccountName }} --container-name ${{ env.storageContainerName }} --file cargotracker/target/cargo-tracker.war --name cargo-tracker.war
   # Invoke the bicep file, passing the necessary parameters to identify the database and war file.
   deploy-wls-on-aks:
-    needs: [deploy-db,deploy-storage-account]
+    needs: [preflight, deploy-db,deploy-storage-account]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout ${{ env.aksRepoUserName }}/weblogic-azure
@@ -247,8 +246,8 @@ jobs:
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
-            echo "create resource group" ${{ env.resourceGroupForWlsAks }}
-            az group create --verbose --name ${{ env.resourceGroupForWlsAks }} --location ${{ env.location }}
+            echo "create resource group" ${{ preflight.outputs.resourceGroupForWlsAks }}
+            az group create --verbose --name ${{ preflight.outputs.resourceGroupForWlsAks }} --location ${{ env.location }}
       - name: Checkout cargotracker
         uses: actions/checkout@v2
         with:
@@ -281,7 +280,7 @@ jobs:
           inlineScript: |
             az deployment group validate \
             --debug \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --name wls-on-aks \
             --parameters @cargotracker/src/test/aks/parameters.json \
             --template-file ${artifactName}/mainTemplate.json
@@ -294,7 +293,7 @@ jobs:
           inlineScript: |
             az deployment group create \
             --verbose \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --name wls-on-aks \
             --parameters @cargotracker/src/test/aks/parameters.json \
             --template-file ${artifactName}/mainTemplate.json
@@ -302,8 +301,8 @@ jobs:
       - name: Connect to AKS cluster
         run: |
           echo "connect to cluster"
-          aksClusterName=$(az resource list --resource-group ${{ env.resourceGroupForWlsAks }} --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" -o tsv)
-          az aks get-credentials --resource-group ${{ env.resourceGroupForWlsAks }} --name $aksClusterName
+          aksClusterName=$(az resource list --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} --query "[?type=='Microsoft.ContainerService/managedClusters'].name|[0]" -o tsv)
+          az aks get-credentials --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} --name $aksClusterName
       # Apply JMS configuration in src/test/aks/cargo-tracker-jms.yaml to configmap. This is necessary to have Cargo Tracker fully operational.
       - name: Generate&Apply configmap
         run: |
@@ -320,19 +319,19 @@ jobs:
         run: |
           az extension add --upgrade -n application-insights
           workspaceId=$(az resource list \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --query "[?type=='Microsoft.OperationalInsights/workspaces'].name|[0]" \
             -o tsv)
 
           az monitor app-insights component create \
             --app ${{ env.appInsightName }} \
             --location ${{ env.location }} \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --workspace ${workspaceId}
       - name: Connect to App Insights
         run: |
           appInsightConnectionString=$(az monitor app-insights component show \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --query '[0].connectionString' -o tsv)
 
           curl -m 120 --retry 5 -LO https://github.com/microsoft/ApplicationInsights-Java/releases/download/3.4.10/applicationinsights-agent-3.4.10.jar 
@@ -428,7 +427,7 @@ jobs:
       - name: Make REST API calls
         run: | 
           gatewayPublicIPId=$(az network application-gateway list \
-            --resource-group ${{ env.resourceGroupForWlsAks }} \
+            --resource-group ${{ preflight.outputs.resourceGroupForWlsAks }} \
             --query '[0].frontendIPConfigurations[0].publicIPAddress.id' -o tsv)
 
           gatewayUrl=$(az network public-ip show --ids ${gatewayPublicIPId} --query 'dnsSettings.fqdn' -o tsv)
@@ -467,8 +466,8 @@ jobs:
           curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
 
   cleanup:
-    if:  ${{ github.event.inputs.deleteResource == 'true' }}
-    needs: [deploy-db,deploy-storage-account, deploy-wls-on-aks]
+    if:  ${{ preflight.outputs.deleteResource == 'true' }}
+    needs: [preflight, deploy-db,deploy-storage-account, deploy-wls-on-aks]
     runs-on: ubuntu-latest
     steps:
       - uses: azure/login@v1
@@ -483,8 +482,8 @@ jobs:
             echo "delete... " ${{ env.resourceGroupForStorageAccount }}
             az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForStorageAccount }}
 
-            echo "delete... " ${{ env.resourceGroupForWlsAks }}
-            az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForWlsAks }}
+            echo "delete... " ${{ preflight.outputs.resourceGroupForWlsAks }}
+            az group delete --yes --no-wait --verbose --name ${{ preflight.outputs.resourceGroupForWlsAks }}
 
             echo "delete... " ${{ env.resourceGroupForDB }}
             az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForDB }}
