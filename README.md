@@ -93,7 +93,7 @@ cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotrac
 Open `${DIR}/cargotracker/.scripts/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
-export WLS_AKS_REPO_REF="278a527cb7d1eb44a5a65ccc02b6837fe42967db" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="test0223" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
@@ -110,19 +110,6 @@ Then, set the environment:
 
 ```bash
 source ${DIR}/cargotracker/.scripts/setup-env-variables.sh
-```
-
-### Clone WLS on AKS Bicep templates
-
-Clone the Bicep templates from [oracle/weblogic-azure](https://github.com/oracle/weblogic-azure). This quickstart was tested with [commit 278a527](https://github.com/oracle/weblogic-azure/commit/278a527cb7d1eb44a5a65ccc02b6837fe42967db). 
-
-```bash
-git clone https://github.com/oracle/weblogic-azure.git ${DIR}/weblogic-azure
-
-cd ${DIR}/weblogic-azure
-git checkout ${WLS_AKS_REPO_REF}
-
-cd ${DIR}
 ```
 
 ### Sign in to Azure
@@ -227,7 +214,7 @@ DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azur
 
 ### Prepare deployment parameters
 
-Several parameters are required to invoke the Bicep templates. Parameters and their value are listed in the table. Make sure the variables have correct value.
+In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/galiacheng/weblogic-azure/tree/test0223/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/galiacheng/weblogic-azure/blob/test0223/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
 
 | Parameter Name | Value | Note |
 | -------------| ---------- | -----------------|
@@ -273,7 +260,7 @@ bash ${DIR}/cargotracker/src/test/aks/genParameters.sh \
 
 ### Invoke WLS on AKS Bicep template to deploy the application
 
-Invoke the Bicep template in `${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep` to deploy Cargo Tracker to WLS on AKS.
+Invoke the solution template from `https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/mainTemplate.json` to deploy Cargo Tracker to WLS on AKS.
 
 Run the following command to validate the parameter file.
 
@@ -282,7 +269,7 @@ az deployment group validate \
   --resource-group ${RESOURCE_GROUP_NAME} \
   --name wls-on-aks \
   --parameters @parameters.json \
-  --template-file ${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep
+  --template-uri https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/mainTemplate.json
 ```
 
 The command should complete without error. If there is, you must resolve it before moving on.
@@ -294,7 +281,7 @@ az deployment group create \
   --resource-group ${RESOURCE_GROUP_NAME} \
   --name wls-on-aks \
   --parameters @parameters.json \
-  --template-file ${DIR}/weblogic-azure/weblogic-azure-aks/src/main/bicep/mainTemplate.bicep
+  --template-uri https://raw.githubusercontent.com/oracle/weblogic-azure/${WLS_AKS_REPO_REF}/weblogic-azure-aks/src/main/arm/mainTemplate.json
 ```
 
 It takes more than 1 hour to finish the deployment. The WebLogic cluster is running in namespace `sample-domain1-ns`.
