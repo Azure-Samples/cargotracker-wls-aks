@@ -43,7 +43,6 @@ jobs:
   # Make it so the bicep file that causes WLS on AKS to be deployed is available to this workflow.
   preflight:
     outputs:
-      disambiguationSuffix: ${{ steps.setup-env-variables.outputs.disambiguationSuffix }}
       deleteResource: ${{steps.setup-env-variables.outputs.deleteResource}}
       resourceGroupForWlsAks: wlsd-aks-${{ steps.setup-env-variables.outputs.disambiguationSuffix }}-${{ github.run_number }}
     runs-on: ubuntu-20.04
@@ -60,6 +59,8 @@ jobs:
           if [ ${{ github.event.inputs.deleteResource }} == '' ]; then
             deleteResource='true'
           fi
+
+          echo "deleteResource: ${deleteResource}"
 
           echo "disambiguationSuffix=${disambiguationSuffix}" >> $GITHUB_OUTPUT
           echo "deleteResource=${deleteResource}" >> $GITHUB_OUTPUT
