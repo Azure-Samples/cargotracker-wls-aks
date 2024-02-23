@@ -61,8 +61,8 @@ jobs:
             deleteResource='true'
           fi
 
-          echo "##[set-output name=disambiguationSuffix;]${disambiguationSuffix}"
-          echo "##[set-output name=deleteResource;]${deleteResource}"
+          echo "disambiguationSuffix=${disambiguationSuffix}" >> $GITHUB_OUTPUT
+          echo "deleteResource=${deleteResource}" >> $GITHUB_OUTPUT
 
   # Set up database for use by application.
   deploy-db:
