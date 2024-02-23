@@ -20,7 +20,7 @@ on:
     
 env:
   aksRepoUserName: galiacheng
-  aksRepoBranchName: test0223
+  aksRepoBranchName: test02232
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
@@ -49,6 +49,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Set up ENV variables
+        id: setup-env-variables
         run: |
           disambiguationSuffix=${{ github.event.inputs.disambiguationSuffix }}
           if [ ${{ github.event.inputs.disambiguationSuffix }} == '' ]; then
@@ -62,6 +63,7 @@ jobs:
 
           echo "##[set-output name=disambiguationSuffix;]${disambiguationSuffix}"
           echo "##[set-output name=deleteResource;]${deleteResource}"
+
   # Set up database for use by application.
   deploy-db:
     needs: preflight
