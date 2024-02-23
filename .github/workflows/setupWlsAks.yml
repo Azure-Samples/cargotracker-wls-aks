@@ -223,7 +223,7 @@ jobs:
             --resource-group ${resourceGroupForWlsAks} \
             --name wls-on-aks \
             --parameters @cargotracker/src/test/aks/parameters.json \
-            --template-file ${artifactName}/mainTemplate.json
+            --template-uri https://raw.githubusercontent.com/${aksRepoUserName}/weblogic-azure/${aksRepoBranchName}/weblogic-azure-aks/src/main/arm/mainTemplate.json
       # Invoke the bicep template with the parameters file.
       - name: Deploy WebLogic Server Cluster Domain offer
         id: deploy-wls-cluster
