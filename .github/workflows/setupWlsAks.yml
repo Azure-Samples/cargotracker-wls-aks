@@ -406,7 +406,7 @@ jobs:
           curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
 
   cleanup:
-    if:  ${{ preflight.outputs.deleteResource == 'true' }}
+    if: ${{ needs.preflight.outputs.deleteResource == 'true' }}
     needs: [preflight, deploy-db,deploy-storage-account, deploy-wls-on-aks]
     runs-on: ubuntu-latest
     steps:
