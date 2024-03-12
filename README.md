@@ -214,7 +214,7 @@ DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azur
 
 ### Prepare deployment parameters
 
-In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/galiacheng/weblogic-azure/tree/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/galiacheng/weblogic-azure/blob/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
+In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/oracle/weblogic-azure/tree/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/oracle/weblogic-azure/blob/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
 
 | Parameter Name | Value | Note |
 | -------------| ---------- | -----------------|
