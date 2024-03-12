@@ -87,13 +87,13 @@ After the Maven command completes, the WAR file locates in `${DIR}/cargotracker/
 Create a bash script with environment variables by making a copy of the supplied template:
 
 ```bash
-cp ${DIR}/cargotracker/.scripts/setup-env-variables-template.sh ${DIR}/cargotracker/.scripts/setup-env-variables.sh
+cp ${DIR}/cargotracker/src/test/aks/setup-env-variables-template.sh ${DIR}/cargotracker/src/test/aks/setup-env-variables.sh
 ```
 
-Open `${DIR}/cargotracker/.scripts/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
+Open `${DIR}/cargotracker/src/test/aks/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
-export WLS_AKS_REPO_REF="test02232" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="2024-02-29-1-Q1" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
@@ -214,7 +214,7 @@ DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azur
 
 ### Prepare deployment parameters
 
-In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/galiacheng/weblogic-azure/tree/test02232/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/galiacheng/weblogic-azure/blob/test02232/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
+In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/galiacheng/weblogic-azure/tree/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/galiacheng/weblogic-azure/blob/2024-02-29-1-Q1/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
 
 | Parameter Name | Value | Note |
 | -------------| ---------- | -----------------|

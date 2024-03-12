@@ -13,14 +13,14 @@ on:
         required: true
   repository_dispatch:
   schedule:
-    - cron: '0 0 21 * *' # run the workflow at the end of 21th monthly.
+    - cron: '0 0 13 * *' # run the workflow at the end of 21th monthly.
 
 # All of the secrets in the env section are required. Run setup.sh to
 # populate the git repository running this workflow with the necessary secrets.
     
 env:
   aksRepoUserName: galiacheng
-  aksRepoBranchName: test02232
+  aksRepoBranchName: 2024-02-29-1-Q1
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
