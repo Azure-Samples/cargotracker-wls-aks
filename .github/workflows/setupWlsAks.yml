@@ -407,7 +407,7 @@ jobs:
           curl -X POST -d "@data.json" -H "Content-Type: application/json" ${cargoUrl}rest/handling/reports
 
   cleanup:
-    if: ${{ needs.preflight.outputs.deleteResource == 'true' }}
+    if: always()
     needs: [preflight, deploy-db,deploy-storage-account, deploy-wls-on-aks]
     runs-on: ubuntu-latest
     steps:
@@ -417,6 +417,7 @@ jobs:
           creds: ${{ env.azureCredentials }}
       - name: Delete Azure resources.
         uses: azure/CLI@v1
+        if: ${{ needs.preflight.outputs.deleteResource == 'true' }}
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
