@@ -195,6 +195,7 @@ jobs:
           path: cargotracker
       - name: Prepare parameter file
         run: |
+          echo "https://raw.githubusercontent.com/${aksRepoUserName}/weblogic-azure/${aksRepoBranchName}/weblogic-azure-aks/src/main/arm/mainTemplate.json"
           echo "replace placeholders using real parameter"
           bash cargotracker/src/test/aks/genParameters.sh  \
           ${aksRepoUserName} \
