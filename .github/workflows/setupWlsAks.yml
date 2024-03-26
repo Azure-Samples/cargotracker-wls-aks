@@ -20,7 +20,7 @@ on:
     
 env:
   aksRepoUserName: ${{ secrets.AKS_REPO_USER_NAME }}
-  aksRepoBranchName: 2024-03-13-2-Q1
+  aksRepoBranchName: 2024-03-21-1-Q1
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.54.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
