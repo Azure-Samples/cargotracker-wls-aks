@@ -432,7 +432,7 @@ jobs:
             az group delete --yes --no-wait --verbose --name ${{ env.resourceGroupForDB }}
   
   alert:
-    needs: [deploy-db,deploy-storage-account, deploy-wls-on-aks]
+    needs: [deploy-db,deploy-storage-account, deploy-wls-on-aks, cleanup]
     if: failure()
     runs-on: ubuntu-latest
     steps:
