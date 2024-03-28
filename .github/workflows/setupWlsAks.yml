@@ -51,12 +51,12 @@ jobs:
         id: setup-env-variables
         run: |
           disambiguationSuffix=${{ github.event.inputs.disambiguationSuffix }}
-          if [ ${{ github.event.inputs.disambiguationSuffix }} == '' ]; then
+          if [ -z "${disambiguationSuffix}" ]; then
             disambiguationSuffix=wls`date +%m%d`
           fi
 
           deleteResource=${{ github.event.inputs.deleteResource }}
-          if [ ${{ github.event.inputs.deleteResource }} == '' ]; then
+          if [ -z "${deleteResource}" ]; then
             deleteResource='true'
           fi
 
