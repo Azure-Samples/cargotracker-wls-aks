@@ -22,11 +22,12 @@ env:
   aksRepoUserName: ${{ secrets.AKS_REPO_USER_NAME }}
   aksRepoBranchName: 2024-03-21-1-Q1
   appInsightName: wlsakscargotracker${{ github.run_id }}
-  azCliVersion: 2.54.0
+  azCliVersion: 2.60.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
   dbAdminUser: weblogic
   dbPassword: ${{ secrets.DB_PASSWORD }}
   dbName: wlsdb${{ github.run_id }}${{ github.run_number }}
+  dbServerName: weblogicdbs
   location: eastus
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
@@ -88,24 +89,31 @@ jobs:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "Deploy DB with name " ${{ env.dbName }}
-            az postgres server create \
-            --resource-group ${{ env.resourceGroupForDB }} \
-            --name ${{ env.dbName }}  \
-            --location ${{ env.location }} \
-            --admin-user ${{ env.dbAdminUser }} \
-            --ssl-enforcement Disabled \
-            --public-network-access Enabled \
-            --admin-password ${{ env.dbPassword }} \
-            --sku-name B_Gen5_1
-            
-            echo "Allow Access To Azure Services"
+            az postgres flexible-server create \
+              --resource-group ${{ env.resourceGroupForDB }} \
+              --name ${{ env.dbName }} \
+              --location ${{ env.location }} \
+              --admin-user ${{ env.dbAdminUser }} \
+              --admin-password ${{ env.dbPassword }} \
+              --version 16 \
+              --public-access 0.0.0.0 \
+              --tier Burstable \
+              --sku-name Standard_B1ms \
+              --yes
+
+            az postgres flexible-server db create \
+              --resource-group ${{ env.resourceGroupForDB }} \
+              --server-name ${{ env.dbName }} \
+              --database-name ${{ env.dbServerName }}
+
             sleep 1m
-            az postgres server firewall-rule create \
-            -g ${{ env.resourceGroupForDB }} \
-            -s ${{ env.dbName }} \
-            -n "AllowAllWindowsAzureIps" \
-            --start-ip-address "0.0.0.0" \
-            --end-ip-address "0.0.0.0"
+            echo "Allow Access To Azure Services"
+            az postgres flexible-server firewall-rule create \
+              -g ${{ env.resourceGroupForDB }} \
+              -n ${{ env.dbName }} \
+              -r "AllowAllWindowsAzureIps" \
+              --start-ip-address "0.0.0.0" \
+              --end-ip-address "0.0.0.0"
   # Create an Azure storage account to hold the application war so that WLS on AKS can access it at deployment time.
   deploy-storage-account:
     needs: preflight
@@ -202,7 +210,7 @@ jobs:
           ${aksRepoBranchName} \
           ${cargoTrackerBlobUrl} \
           ${dbPassword} \
-          ${dbAdminUser}@${dbName} \
+          ${dbAdminUser} \
           "jdbc:postgresql://${dbName}.postgres.database.azure.com:5432/postgres" \
           ${location} \
           ${ocrSSOPSW} \
