@@ -96,9 +96,10 @@ Open `${DIR}/cargotracker/src/test/aks/setup-env-variables.sh` and enter the fol
 export WLS_AKS_REPO_REF="2024-03-21-1-Q1" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
-export DB_SERVER_NAME="wlsdb$(date +%s)" # PostgreSQL server name
+export DB_SERVER_NAME="wlsserverdb$(date +%s)" # PostgreSQL server name
+export DB_NAME="wlsserverdb" # PostgreSQL database name
 export DB_PASSWORD="Secret123456" # PostgreSQL database password
-
+export DB_USER="weblogic" # PostgreSQL database user
 export MY_ORACLE_SSO_USER="user@contoso.com" # replace with your Oracle Account user name.
 export MY_ORACLE_SSO_PASSWORD="Secret123456" # replace with your Oracle Account password.
 
@@ -184,24 +185,31 @@ APP_URL=$(az storage blob url \
 
 ### Create an Azure Database for PostgreSQL instance
 
-Use `az postgres server create` to provision a PostgreSQL instance on Azure. The data server allows access from Azure Services.
+Use `az postgres flexible-server create` to provision a PostgreSQL instance on Azure. The data server allows access from Azure Services.
 
 ```bash
-az postgres server create \
+az postgres flexible-server create \
   --resource-group ${RESOURCE_GROUP_NAME} \
-  --name ${DB_SERVER_NAME}  \
+  --name ${DB_SERVER_NAME} \
   --location eastus \
-  --admin-user weblogic \
-  --ssl-enforcement Disabled \
-  --public-network-access Enabled \
+  --admin-user ${DB_USER} \
   --admin-password ${DB_PASSWORD} \
-  --sku-name B_Gen5_1
+  --version 16 \
+  --public-access 0.0.0.0 \
+  --tier Burstable \
+  --sku-name Standard_B1ms \
+  --yes
 
-  echo "Allow Access To Azure Services"
-  az postgres server firewall-rule create \
+az postgres flexible-server db create \
+  --resource-group ${RESOURCE_GROUP_NAME} \
+  --server-name ${DB_SERVER_NAME} \
+  --database-name ${DB_NAME}
+
+echo "Allow Access to Azure Services"
+az postgres flexible-server firewall-rule create \
   -g ${RESOURCE_GROUP_NAME} \
-  -s ${DB_SERVER_NAME} \
-  -n "AllowAllWindowsAzureIps" \
+  -n ${DB_SERVER_NAME} \
+  -r "AllowAllWindowsAzureIps" \
   --start-ip-address "0.0.0.0" \
   --end-ip-address "0.0.0.0"
 ```
@@ -247,7 +255,7 @@ bash ${DIR}/cargotracker/src/test/aks/genParameters.sh \
   ${WLS_AKS_REPO_REF} \
   ${APP_URL} \
   ${DB_PASSWORD} \
-  "weblogic@${DB_SERVER_NAME}" \
+  ${DB_USER} \
   "${DB_CONNECTION_STRING}" \
   "eastus" \
   ${MY_ORACLE_SSO_PASSWORD} \
