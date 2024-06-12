@@ -106,7 +106,7 @@ jobs:
               --server-name ${{ env.dbName }} \
               --database-name ${{ env.dbServerName }}
 
-            sleep 1m
+            sleep 2m
             echo "Allow Access To Azure Services"
             az postgres flexible-server firewall-rule create \
               -g ${{ env.resourceGroupForDB }} \
