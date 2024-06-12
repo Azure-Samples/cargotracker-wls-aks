@@ -20,7 +20,7 @@ on:
     
 env:
   aksRepoUserName: ${{ secrets.AKS_REPO_USER_NAME }}
-  aksRepoBranchName: 2024-03-21-1-Q1
+  aksRepoBranchName: 2024-06-04-1-Q2
   appInsightName: wlsakscargotracker${{ github.run_id }}
   azCliVersion: 2.60.0
   azureCredentials: ${{ secrets.AZURE_CREDENTIALS }}
@@ -106,7 +106,7 @@ jobs:
               --server-name ${{ env.dbName }} \
               --database-name ${{ env.dbServerName }}
 
-            sleep 1m
+            sleep 2m
             echo "Allow Access To Azure Services"
             az postgres flexible-server firewall-rule create \
               -g ${{ env.resourceGroupForDB }} \

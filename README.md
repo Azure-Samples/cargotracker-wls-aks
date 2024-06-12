@@ -93,7 +93,7 @@ cp ${DIR}/cargotracker/src/test/aks/setup-env-variables-template.sh ${DIR}/cargo
 Open `${DIR}/cargotracker/src/test/aks/setup-env-variables.sh` and enter the following information. Make sure your Oracle SSO user name and password are correct.
 
 ```bash
-export WLS_AKS_REPO_REF="2024-03-21-1-Q1" # oracle/weblogic-azure reference
+export WLS_AKS_REPO_REF="2024-06-04-1-Q2" # oracle/weblogic-azure reference
 export RESOURCE_GROUP_NAME="abc1110rg" # customize this
 export STORAGE_ACCOUNT_NAME="stgwlsaks$(date +%s)" # storage account name
 export DB_SERVER_NAME="wlsserverdb$(date +%s)" # PostgreSQL server name
@@ -222,7 +222,7 @@ DB_CONNECTION_STRING="jdbc:postgresql://${DB_SERVER_NAME}.postgres.database.azur
 
 ### Prepare deployment parameters
 
-In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/oracle/weblogic-azure/tree/2024-03-21-1-Q1/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/oracle/weblogic-azure/blob/2024-03-21-1-Q1/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
+In the following sections, you use solution templates in [oralce/weblogic-azure](https://github.com/oracle/weblogic-azure/tree/2024-06-04-1-Q2/weblogic-azure-aks/src/main/arm) to provision resources. Several parameters are required to invoke [mainTemplate.json](https://github.com/oracle/weblogic-azure/blob/2024-06-04-1-Q2/weblogic-azure-aks/src/main/arm/mainTemplate.json). Parameters and their value are listed in the table. Make sure the variables have correct value.
 
 | Parameter Name | Value | Note |
 | -------------| ---------- | -----------------|
