@@ -11,6 +11,10 @@ on:
         description: "True to delete all the Azure resources after the deployments. False to keep Azure resources."
         default: "true"
         required: true
+      region:
+        description: "Azure region for resources"
+        required: true
+        default: westus
   repository_dispatch:
   schedule:
     - cron: '0 0 13 * *' # run the workflow at the end of 21th monthly.
@@ -28,7 +32,6 @@ env:
   dbPassword: ${{ secrets.DB_PASSWORD }}
   dbName: wlsdb${{ github.run_id }}${{ github.run_number }}
   dbServerName: weblogicdbs
-  location: eastus
   ocrSSOPSW: ${{ secrets.ORC_SSOPSW }}
   ocrSSOUser: ${{ secrets.ORC_SSOUSER }}
   refJavaee: d70ad03d3de9de45174b14d4077dbb2d148d5bbb
@@ -45,6 +48,7 @@ jobs:
   preflight:
     outputs:
       deleteResource: ${{steps.setup-env-variables.outputs.deleteResource}}
+      location: ${{ steps.setup-env-variables.outputs.location }}
       resourceGroupForWlsAks: wlsd-aks-${{ steps.setup-env-variables.outputs.disambiguationSuffix }}-${{ github.run_number }}
     runs-on: ubuntu-20.04
     steps:
@@ -61,16 +65,25 @@ jobs:
             deleteResource='true'
           fi
 
+          location=${{ github.event.inputs.region }}
+          if [[ -z "${location}" ]];then
+            location=westus
+          fi
+
           echo "deleteResource: ${deleteResource}"
 
           echo "disambiguationSuffix=${disambiguationSuffix}" >> $GITHUB_OUTPUT
           echo "deleteResource=${deleteResource}" >> $GITHUB_OUTPUT
+          echo "location=${location}" >> $GITHUB_OUTPUT
 
   # Set up database for use by application.
   deploy-db:
     needs: preflight
     runs-on: ubuntu-latest
     steps:
+      - name: Set variables
+        run: |
+          echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
       - uses: azure/login@v1
         id: azure-login
         with:
@@ -81,7 +94,7 @@ jobs:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "create resource group" ${{ env.resourceGroupForDB }}
-            az group create --verbose --name ${{ env.resourceGroupForDB }} --location ${{ env.location }}
+            az group create --verbose --name ${{ env.resourceGroupForDB }} --location ${location}
       - name: Set Up Azure Postgresql to Test dbTemplate
         id: setup-postgresql
         uses: azure/CLI@v1
@@ -92,7 +105,7 @@ jobs:
             az postgres flexible-server create \
               --resource-group ${{ env.resourceGroupForDB }} \
               --name ${{ env.dbName }} \
-              --location ${{ env.location }} \
+              --location ${location} \
               --admin-user ${{ env.dbAdminUser }} \
               --admin-password ${{ env.dbPassword }} \
               --version 16 \
@@ -119,6 +132,9 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     steps:
+      - name: Set variables
+        run: |
+          echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
       - name: Checkout cargotracker
         uses: actions/checkout@v2
         with:
@@ -136,7 +152,7 @@ jobs:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "create resource group" ${{ env.resourceGroupForStorageAccount }}
-            az group create --verbose --name ${{ env.resourceGroupForStorageAccount }} --location ${{ env.location }}
+            az group create --verbose --name ${{ env.resourceGroupForStorageAccount }} --location ${location}
       - name: Create Storage Account
         uses: azure/CLI@v1
         with:
@@ -144,7 +160,7 @@ jobs:
           inlineScript: |
             az storage account create --name ${{ env.storageAccountName }} \
                 --resource-group ${{ env.resourceGroupForStorageAccount }} \
-                --location ${{ env.location }} \
+                --location ${location} \
                 --sku Standard_LRS \
                 --kind StorageV2
       - name: Create Storage Container
@@ -167,6 +183,7 @@ jobs:
       - name: Set variables
         run: |
           echo "resourceGroupForWlsAks=${{ needs.preflight.outputs.resourceGroupForWlsAks }}" >> $GITHUB_ENV
+          echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
       - uses: azure/login@v1
         id: azure-login
         with:
@@ -196,7 +213,7 @@ jobs:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "create resource group" ${resourceGroupForWlsAks}
-            az group create --verbose --name ${resourceGroupForWlsAks} --location ${{ env.location }}
+            az group create --verbose --name ${resourceGroupForWlsAks} --location ${location}
       - name: Checkout cargotracker
         uses: actions/checkout@v2
         with:
@@ -275,7 +292,7 @@ jobs:
 
           az monitor app-insights component create \
             --app ${{ env.appInsightName }} \
-            --location ${{ env.location }} \
+            --location ${location} \
             --resource-group ${resourceGroupForWlsAks} \
             --workspace ${workspaceId}
       - name: Connect to App Insights
