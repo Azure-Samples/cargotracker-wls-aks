@@ -145,13 +145,13 @@ msg "${GREEN}(3/4) Create Azure credentials ${SERVICE_PRINCIPAL_NAME} with Contr
 SUBSCRIPTION_ID=$(az account show --query id --output tsv --only-show-errors)
 
 ### AZ ACTION CREATE
-AZURE_CREDENTIALS=$(az ad sp create-for-rbac --name ${SERVICE_PRINCIPAL_NAME} --role "Contributor" --scopes "/subscriptions/${SUBSCRIPTION_ID}" --sdk-auth --only-show-errors)
-SP_OBJECT_ID_ARRAY=$(az ad sp list --display-name ${SERVICE_PRINCIPAL_NAME} --query "[].appId") || true
-# remove whitespace
-SP_OBJECT_ID_ARRAY=$(echo ${SP_OBJECT_ID_ARRAY} | xargs) || true
-SP_OBJECT_ID_ARRAY=${SP_OBJECT_ID_ARRAY//[/}
-SP_OBJECT_ID=${SP_OBJECT_ID_ARRAY//]/}
-az role assignment create --assignee ${SP_OBJECT_ID} --role "User Access Administrator" --subscription "${SUBSCRIPTION_ID}"  --scope "/subscriptions/${SUBSCRIPTION_ID}"
+SP_SECRET=$(az ad sp create-for-rbac --display-name ${SERVICE_PRINCIPAL_NAME} --only-show-errors --query "password" --output tsv)
+SP_OBJECT_ID=$(az ad sp list --display-name ${SERVICE_PRINCIPAL_NAME} --query \[0\].appId --output tsv)
+TENANT_ID=$(az account show --query tenantId --output tsv --only-show-errors)
+az role assignment create --assignee ${SP_OBJECT_ID} --role "User Access Administrator" --scope "/subscriptions/${SUBSCRIPTION_ID}"
+az role assignment create --assignee ${SP_OBJECT_ID} --role "Contributor" --scope "/subscriptions/${SUBSCRIPTION_ID}"
+
+AZURE_CREDENTIALS="{\"clientId\":\"${SP_OBJECT_ID}\",\"clientSecret\":\"${SP_SECRET}\",\"subscriptionId\":\"${SUBSCRIPTION_ID}\",\"tenantId\":\"${TENANT_ID}\"}"
 
 msg "${GREEN}(4/4) Create secrets in GitHub"
 if $USE_GITHUB_CLI; then
