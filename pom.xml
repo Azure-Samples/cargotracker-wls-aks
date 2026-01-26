@@ -38,7 +38,7 @@
         <!-- Test Utilities -->
         <junit.version>4.13.1</junit.version>
         <hamcrest.version>2.2</hamcrest.version>
-        <assertj.version>3.18.1</assertj.version>
+        <assertj.version>3.27.7</assertj.version>
         <project.build.time>${maven.build.timestamp}</project.build.time>
 
         <jta.data.source>java:app/jdbc/CargoTrackerDatabase</jta.data.source>
