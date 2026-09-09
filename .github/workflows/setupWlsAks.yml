@@ -84,12 +84,12 @@ jobs:
       - name: Set variables
         run: |
           echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
-      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         id: azure-login
         with:
           creds: ${{ env.azureCredentials }}
       - name: Create Resource Group
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -97,7 +97,7 @@ jobs:
             az group create --verbose --name ${{ env.resourceGroupForDB }} --location ${location}
       - name: Set Up Azure Postgresql to Test dbTemplate
         id: setup-postgresql
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -136,27 +136,27 @@ jobs:
         run: |
           echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
       - name: Checkout cargotracker
-        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2.8.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: cargotracker
-      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4.9.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: 'microsoft'
           java-version: '11'
       - run: mvn clean install -PweblogicOnAks --file cargotracker/pom.xml      
-      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         id: azure-login
         with:
           creds: ${{ env.azureCredentials }}
       - name: Create Resource Group
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "create resource group" ${{ env.resourceGroupForStorageAccount }}
             az group create --verbose --name ${{ env.resourceGroupForStorageAccount }} --location ${location}
       - name: Create Storage Account
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -166,13 +166,13 @@ jobs:
                 --sku Standard_LRS \
                 --kind StorageV2
       - name: Create Storage Container
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             az storage container create -n ${{ env.storageContainerName }} --account-name ${{ env.storageAccountName }}
       - name: Upload built web app war file
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -186,12 +186,12 @@ jobs:
         run: |
           echo "resourceGroupForWlsAks=${{ needs.preflight.outputs.resourceGroupForWlsAks }}" >> $GITHUB_ENV
           echo "location=${{ needs.preflight.outputs.location }}" >> $GITHUB_ENV
-      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         id: azure-login
         with:
           creds: ${{ env.azureCredentials }}
       - name: Query web app blob url and set to env
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -210,14 +210,14 @@ jobs:
                 --sas-token ${sasToken} -o tsv)
             echo "cargoTrackerBlobUrl=${cargoTrackerBlobUrl}" >> $GITHUB_ENV
       - name: Create Resource Group
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
             echo "create resource group" ${resourceGroupForWlsAks}
             az group create --verbose --name ${resourceGroupForWlsAks} --location ${location}
       - name: Checkout cargotracker
-        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2.8.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: cargotracker
       - name: Prepare parameter file
@@ -243,7 +243,7 @@ jobs:
       # Validate the parameters file in the context of the bicep template to be invoked. This will catch some errors before taking the time to start the full deployment.
       - name: Validate Deploy of WebLogic Server Cluster Domain offer
         id: validate-wls-cluster-deployment
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -256,7 +256,7 @@ jobs:
       # Invoke the bicep template with the parameters file.
       - name: Deploy WebLogic Server Cluster Domain offer
         id: deploy-wls-cluster
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         with:
           azcliversion: ${{ env.azCliVersion }}
           inlineScript: |
@@ -439,12 +439,12 @@ jobs:
     needs: [preflight, deploy-db,deploy-storage-account, deploy-wls-on-aks]
     runs-on: ubuntu-latest
     steps:
-      - uses: azure/login@cb79c773a3cfa27f31f25eb3f677781210c9ce3d # v1.6.1
+      - uses: azure/login@7ddb5af1ef8758cf1353cf3b42f940aee27ba21c # v3.0.2
         id: azure-login
         with:
           creds: ${{ env.azureCredentials }}
       - name: Delete Azure resources.
-        uses: azure/CLI@4db43908b9df2e7ac93c8275a8f9a448c59338dd # v1.0.9
+        uses: azure/CLI@9eb25b8360668fb0ecbafa808d40e2197b2f5f52 # v3.0.0
         if: ${{ needs.preflight.outputs.deleteResource == 'true' }}
         with:
           azcliversion: ${{ env.azCliVersion }}
